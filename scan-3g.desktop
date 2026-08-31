@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=WCDMA SIB Scan
+Comment=Passive WCDMA BCH/SIB scan on the first free USRP
+Exec=bash -c 'cd "$(dirname "$(readlink -f %k)")" && ./run-scan.sh; echo; read -r -p "Enter to close..."'
+Terminal=true
+Categories=HamRadio;
