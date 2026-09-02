@@ -14,9 +14,33 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import pickle
+from pathlib import Path
+
 import numpy as np
 import scipy.signal
-import os
+
+# WCDMA RRC occupied ~4.68 MHz. Adjacent UARFCN is 5 MHz away; an 8 MHz analog
+# front-end plus 7.68 Msps lets that neighbour's lower shoulder into baseband
+# (10788 decoded 10813's BCH: same CID/PSC, RSCP ~55 dB down).
+_CHANNEL_TAPS = None
+
+
+def wcdma_channel_taps(sample_rate=7.68e6, cutoff_hz=3.2e6, ntaps=129):
+    global _CHANNEL_TAPS
+    key = (float(sample_rate), float(cutoff_hz), int(ntaps))
+    if _CHANNEL_TAPS is None or _CHANNEL_TAPS[0] != key:
+        taps = scipy.signal.firwin(ntaps, cutoff_hz, fs=sample_rate, pass_zero="lowpass")
+        _CHANNEL_TAPS = (key, taps.astype(np.float32))
+    return _CHANNEL_TAPS[1]
+
+
+def apply_channel_filter(iq_data, sample_rate=7.68e6):
+    """Low-pass around DC so a 5 MHz-offset WCDMA neighbour does not decode as serving."""
+    taps = wcdma_channel_taps(sample_rate)
+    x = np.asarray(iq_data, dtype=np.complex64)
+    y = scipy.signal.fftconvolve(x, taps, mode="same")
+    return y.astype(np.complex64)
 
 # WCDMA TS 25.213 Table 4: Allocation of SSCs for secondary SCH
 WCDMA_SSC_ALLOCATION = [
@@ -159,8 +183,29 @@ def generate_gold_sequences(length=262143):
         
     return x, y
 
+
+def _load_gold_registers():
+    cache = Path.home() / ".cache" / "wcdma-sib-scan" / "gold-262143.pkl"
+    if cache.exists():
+        try:
+            with open(cache, "rb") as fh:
+                x, y = pickle.load(fh)
+            if len(x) == 262143 and len(y) == 262143:
+                return x, y
+        except Exception:
+            pass
+    x, y = generate_gold_sequences()
+    try:
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache, "wb") as fh:
+            pickle.dump((x, y), fh, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        pass
+    return x, y
+
+
 # Global pre-generated registers to speed up execution
-X_REG, Y_REG = generate_gold_sequences()
+X_REG, Y_REG = _load_gold_registers()
 
 def generate_scrambling_code(sc_num, length=38400):
     """
@@ -186,166 +231,167 @@ def generate_scrambling_code(sc_num, length=38400):
     S_dl = Z_n_real + 1j * Z_n_imag
     return S_dl
 
-def perform_cell_search(iq_data, sample_rate=7.68e6, plot_diagnostics=False, plot_output_path="cell_search_diagnostics.png"):
-    """
-    Executes WCDMA 3-Step Offline Cell Search Pipeline on complex64 IQ sample array.
-    """
-    # 1. Step 1: P-SCH Slot Synchronization & Coarse Freq Correction
-    print("[Adım 1/3] P-SCH Slot senkronizasyonu başlatılıyor...")
-    C_psc = generate_psc()
-    # Upsample template to 2 samples/chip (nearest neighbor repeat)
-    psc_template = np.repeat(C_psc, 2)
-    
-    # Coarse frequency offset grid search: -20 kHz to +20 kHz with 2 kHz steps
+# S-SCH / CPICH only need a short window. P-SCH already uses 100 ms.
+# 20 frames = 200 ms covers several SCH cycles; SIB decode still uses the full capture.
+MAX_CELLSEARCH_FRAMES = 20
+_SSC_CONJ = None
+
+
+def _ssc_conj_templates():
+    global _SSC_CONJ
+    if _SSC_CONJ is None:
+        _SSC_CONJ = np.stack(
+            [np.repeat(generate_ssc(k), 2).conj() for k in range(1, 17)]
+        )
+    return _SSC_CONJ
+
+
+def _coarse_psch(iq_data, sample_rate):
+    """P-SCH slot sync + coarse CFO on at most 100 ms. Returns offset, freq, folded profile."""
+    import scipy.signal
+
+    psc_mf = np.repeat(generate_psc(), 2)[::-1].conj()
     freq_grid = np.arange(-20000, 21000, 2000)
-    best_peak = -1
-    best_offset = 0
-    best_freq = 0
-    best_folded = None
-    
-    # Limit data used for coarse sync to at most 150 slots (10 frames = 100 ms)
-    # to keep processing time fast regardless of recording duration.
     max_sync_samples = min(len(iq_data), 150 * 5120)
     iq_sync_part = iq_data[:max_sync_samples]
     t_sync = np.arange(max_sync_samples) / sample_rate
-    
-    t = np.arange(len(iq_data)) / sample_rate
-    
+    best_peak = -1.0
+    best_offset = 0
+    best_freq = 0
+    best_folded = None
     for f in freq_grid:
-        # Rotate received IQ data (including 2.40 MHz Low-IF offset)
-        rotated_iq = iq_sync_part * np.exp(-1j * 2 * np.pi * (2.4e6 + f) * t_sync)
-        
-        # FFT matched filter cross-correlation
-        c = scipy.signal.fftconvolve(rotated_iq, psc_template[::-1].conj(), mode='valid')
-        
-        # Incoherent slot folding (slot = 5120 samples)
+        rotated_iq = iq_sync_part * np.exp(-1j * 2 * np.pi * f * t_sync)
+        c = scipy.signal.fftconvolve(rotated_iq, psc_mf, mode="valid")
         n_slots = len(c) // 5120
         if n_slots == 0:
             raise ValueError("IQ veri kümesi slot eşiğinden (5120 sample) daha kısa!")
-            
-        folded = np.zeros(5120)
-        for s in range(n_slots):
-            folded += np.abs(c[s*5120 : (s+1)*5120])
-            
-        peak_val = np.max(folded)
+        folded = np.abs(c[: n_slots * 5120]).reshape(n_slots, 5120).sum(axis=0)
+        peak_val = float(folded.max())
         if peak_val > best_peak:
             best_peak = peak_val
-            best_offset = np.argmax(folded)
+            best_offset = int(folded.argmax())
             best_freq = f
             best_folded = folded
-            
-    print(f"  -> Slot sınır kayması: {best_offset} sample (5120 sample içinde)")
-    print(f"  -> Coarse frekans kayması: {best_freq} Hz (düzeltildi)")
-    
-    # Compensate frequency offset in input data once (including 2.40 MHz Low-IF offset)
-    iq_rotated = iq_data * np.exp(-1j * 2 * np.pi * (2.4e6 + best_freq) * t)
-    
-    # Diagnostic plot is deferred to the end of the function after CPICH constellation is resolved
+    return best_offset, best_freq, best_folded
 
-    # 2. Step 2: S-SCH Frame Synchronization & Code Group Detection
-    print("[Adım 2/3] S-SCH Frame senkronizasyonu ve kod grubu araması başlatılıyor...")
-    ssc_templates = []
-    for k in range(1, 17):
-        ssc = generate_ssc(k)
-        ssc_templates.append(np.repeat(ssc, 2))
-        
-    num_frames = (len(iq_rotated) - best_offset) // 76800
-    if num_frames == 0:
+
+def _rotate_search_window(iq_data, sample_rate, best_offset, best_freq):
+    """Mix only the samples needed for S-SCH + one CPICH frame (indices stay absolute)."""
+    n_avail = (len(iq_data) - best_offset) // 76800
+    if n_avail <= 0:
         raise ValueError("IQ veri kümesi frame eşiğinden (76800 sample) daha kısa!")
-        
-    # Construct average correlation matrix over all complete frames (15 slots x 16 SSCs)
-    ssc_corr_matrix = np.zeros((15, 16))
-    for f_idx in range(num_frames):
-        frame_start = best_offset + f_idx * 76800
-        for slot_idx in range(15):
-            slot_start = frame_start + slot_idx * 5120
-            # S-SCH is transmitted in the first 256 chips = 512 samples of the slot
-            slot_segment = iq_rotated[slot_start : slot_start + 512]
-            if len(slot_segment) < 512:
-                continue
-            for k in range(16):
-                corr_val = np.abs(np.sum(slot_segment * ssc_templates[k].conj()))
-                ssc_corr_matrix[slot_idx, k] += corr_val
-                
-    # Match matrix against Comma-Free allocation table (64 groups x 15 circular shifts)
-    best_score = -1
+    n_frames = min(MAX_CELLSEARCH_FRAMES, n_avail)
+    win_end = min(len(iq_data), best_offset + n_frames * 76800 + 76800 + 32)
+    t_win = np.arange(win_end) / sample_rate
+    iq_rotated = iq_data[:win_end] * np.exp(
+        -1j * 2 * np.pi * best_freq * t_win
+    )
+    return iq_rotated, n_frames
+
+
+def _ssc_corr_matrix(iq_rotated, slot_offset, n_frames):
+    """(15, 16) incoherent SSC correlation, stacked slots x templates."""
+    ssc_conj = _ssc_conj_templates()
+    acc = np.zeros((15, 16), dtype=np.float64)
+    n = len(iq_rotated)
+    for f_idx in range(n_frames):
+        start = slot_offset + f_idx * 76800
+        if start + 76800 > n:
+            break
+        segs = np.asarray(iq_rotated[start : start + 76800]).reshape(15, 5120)[:, :512]
+        acc += np.abs(segs @ ssc_conj.T)
+    return acc
+
+
+def _match_code_group(ssc_corr_matrix):
+    best_score = -1.0
     best_group = -1
     best_shift = -1
-    
     for g in range(64):
+        alloc = WCDMA_SSC_ALLOCATION[g]
         for shift in range(15):
-            score = 0
+            score = 0.0
             for slot_idx in range(15):
-                ssc_idx = WCDMA_SSC_ALLOCATION[g][(slot_idx + shift) % 15] - 1
+                ssc_idx = alloc[(slot_idx + shift) % 15] - 1
                 score += ssc_corr_matrix[slot_idx, ssc_idx]
             if score > best_score:
                 best_score = score
                 best_group = g
                 best_shift = shift
-                
+    return best_group, best_shift, best_score
+
+
+def _cpich_search(iq_rotated, frame_boundary, sc_num):
+    """Delay -32..32, vectorized 150-symbol CPICH despread. Same energy as per-symbol np.sum."""
+    gold_conj = np.repeat(generate_scrambling_code(sc_num, length=38400), 2).conj()
+    n = len(iq_rotated)
+    lo = max(0, frame_boundary - 32)
+    hi = min(n, frame_boundary + 32 + 76800)
+    if hi - lo < 76800:
+        return 0, None, -1.0
+    base = np.ascontiguousarray(iq_rotated[lo:hi])
+    n_delays = len(base) - 76800 + 1
+    windows = np.lib.stride_tricks.sliding_window_view(base, 76800)[:n_delays]
+    desc = windows * gold_conj
+    symbols = desc.reshape(n_delays, 150, 512).sum(axis=2)
+    energy = np.sum(np.abs(symbols) ** 2, axis=1)
+    best_i = int(energy.argmax())
+    best_delay = (lo + best_i) - frame_boundary
+    return best_delay, symbols[best_i], float(energy[best_i])
+
+
+def perform_cell_search(iq_data, sample_rate=7.68e6, plot_diagnostics=False, plot_output_path="cell_search_diagnostics.png"):
+    """
+    Executes WCDMA 3-Step Offline Cell Search Pipeline on complex64 IQ sample array.
+    """
+    iq_data = apply_channel_filter(iq_data, sample_rate)
+    # 1. Step 1: P-SCH Slot Synchronization & Coarse Freq Correction
+    print("[Adım 1/3] P-SCH Slot senkronizasyonu başlatılıyor...")
+    best_offset, best_freq, best_folded = _coarse_psch(iq_data, sample_rate)
+    print(f"  -> Slot sınır kayması: {best_offset} sample (5120 sample içinde)")
+    print(f"  -> Coarse frekans kayması: {best_freq} Hz (düzeltildi)")
+
+    iq_rotated, num_frames = _rotate_search_window(
+        iq_data, sample_rate, best_offset, best_freq
+    )
+
+    # 2. Step 2: S-SCH Frame Synchronization & Code Group Detection
+    print("[Adım 2/3] S-SCH Frame senkronizasyonu ve kod grubu araması başlatılıyor...")
+    ssc_corr_matrix = _ssc_corr_matrix(iq_rotated, best_offset, num_frames)
+    best_group, best_shift, _best_score = _match_code_group(ssc_corr_matrix)
+
     # Calculate resolved frame boundary (start of slot #0)
     frame_offset_slots = (15 - best_shift) % 15
     frame_boundary = best_offset + frame_offset_slots * 5120
-    
+
     print(f"  -> Çerçeve başlangıcı (slot #0): {frame_boundary} sample")
     print(f"  -> Tespit edilen Scrambling Code Grubu: {best_group} (64 grup içinden)")
-    
+
     # 3. Step 3: CPICH Descrambling & Primary Scrambling Code Detection
     print("[Adım 3/3] Gold code descrambling ve Primary Scrambling Code (PSC) çözümü başlatılıyor...")
-    
-    # Extract a full 10 ms frame from frame_boundary
-    frame_iq = iq_rotated[frame_boundary : frame_boundary + 76800]
-    if len(frame_iq) < 76800:
-        # Fallback to first possible frame start if end of data was reached
+
+    if frame_boundary + 76800 > len(iq_rotated):
         for f_idx in range(num_frames):
             cand_start = best_offset + f_idx * 76800 + frame_offset_slots * 5120
             if cand_start + 76800 <= len(iq_rotated):
                 frame_boundary = cand_start
                 break
-        frame_iq = iq_rotated[frame_boundary : frame_boundary + 76800]
-        
-    best_sc_energy = -1
+
+    best_sc_energy = -1.0
     resolved_sc = -1
     best_cpich_symbols = None
-    
-    # Group g contains candidate scrambling codes 8*g to 8*g + 7
-    candidates = [8 * best_group + k for k in range(8)]
-    
     best_fine_delay = 0
-    
+    candidates = [8 * best_group + k for k in range(8)]
     for sc_num in candidates:
-        # Generate complex scrambling Gold sequence (length 38400 chips)
-        gold_seq = generate_scrambling_code(sc_num, length=38400)
-        gold_upsampled = np.repeat(gold_seq, 2)
-        
-        # Fine timing search: -32 to +32 samples (covers +/- 16 chips) to be robust against coarse timing offset
-        for delay in range(-32, 33):
-            start_idx = frame_boundary + delay
-            if start_idx < 0 or start_idx + 76800 > len(iq_rotated):
-                continue
-            frame_iq_cand = iq_rotated[start_idx : start_idx + 76800]
-            
-            # Descramble received frame
-            descrambled = frame_iq_cand * gold_upsampled.conj()
-            
-            # Despread CPICH pilots (150 symbols/frame, SF=256 chips = 512 samples)
-            symbols = []
-            for sym_idx in range(150):
-                sym_seg = descrambled[sym_idx * 512 : (sym_idx + 1) * 512]
-                symbols.append(np.sum(sym_seg))
-                
-            symbols = np.array(symbols, dtype=np.complex128)
-            # Non-coherent symbol-level energy calculation (immune to frequency/phase rotation)
-            pilot_corr = symbols / (1 + 1j)
-            sc_energy = np.sum(np.abs(pilot_corr)**2)
-            
-            if sc_energy > best_sc_energy:
-                best_sc_energy = sc_energy
-                resolved_sc = sc_num
-                best_cpich_symbols = symbols
-                best_fine_delay = delay
-                
-    # Update frame timing with resolved fine delay
+        delay, symbols, energy = _cpich_search(iq_rotated, frame_boundary, sc_num)
+        if symbols is None:
+            continue
+        if energy > best_sc_energy:
+            best_sc_energy = energy
+            resolved_sc = sc_num
+            best_cpich_symbols = symbols
+            best_fine_delay = delay
+
     frame_boundary = frame_boundary + best_fine_delay
     frame_iq = iq_rotated[frame_boundary : frame_boundary + 76800]
     
@@ -353,7 +399,7 @@ def perform_cell_search(iq_data, sample_rate=7.68e6, plot_diagnostics=False, plo
     phase_diffs = best_cpich_symbols[1:] * best_cpich_symbols[:-1].conj()
     mean_phase_diff = np.angle(np.sum(phase_diffs))
     fine_cfo_hz = mean_phase_diff * 15000.0 / (2 * np.pi)
-    total_cfo_hz = 2.4e6 + best_freq + fine_cfo_hz
+    total_cfo_hz = best_freq + fine_cfo_hz
     
     print(f"  -> İnce zamanlama düzeltmesi: {best_fine_delay} sample (Çerçeve başlangıcı: {frame_boundary})")
     print(f"  -> Başarıyla çözülen Primary Scrambling Code: {resolved_sc}")
@@ -433,167 +479,68 @@ def perform_multi_cell_search(iq_data, sample_rate=7.68e6, max_cells=4):
     sorted by CPICH Ec/No descending.
     """
     print("[Adım 1/3] P-SCH Slot senkronizasyonu başlatılıyor...")
-    C_psc = generate_psc()
-    psc_template = np.repeat(C_psc, 2)
-    
-    # Coarse frequency offset grid search: -20 kHz to +20 kHz with 2 kHz steps
-    freq_grid = np.arange(-20000, 21000, 2000)
-    best_peak = -1
-    best_offset = 0
-    best_freq = 0
-    best_folded = None
-    
-    # Limit data used for coarse sync to at most 150 slots (10 frames = 100 ms)
-    # to keep processing time fast regardless of recording duration.
-    max_sync_samples = min(len(iq_data), 150 * 5120)
-    iq_sync_part = iq_data[:max_sync_samples]
-    t_sync = np.arange(max_sync_samples) / sample_rate
-    
-    t = np.arange(len(iq_data)) / sample_rate
-    
-    for f in freq_grid:
-        rotated_iq = iq_sync_part * np.exp(-1j * 2 * np.pi * (2.4e6 + f) * t_sync)
-        c = scipy.signal.fftconvolve(rotated_iq, psc_template[::-1].conj(), mode='valid')
-        
-        n_slots = len(c) // 5120
-        if n_slots == 0:
-            raise ValueError("IQ veri kümesi slot eşiğinden (5120 sample) daha kısa!")
-            
-        folded = np.zeros(5120)
-        for s in range(n_slots):
-            folded += np.abs(c[s*5120 : (s+1)*5120])
-            
-        peak_val = np.max(folded)
-        if peak_val > best_peak:
-            best_peak = peak_val
-            best_offset = np.argmax(folded)
-            best_freq = f
-            best_folded = folded
-            
+    iq_data = apply_channel_filter(iq_data, sample_rate)
+    best_offset, best_freq, best_folded = _coarse_psch(iq_data, sample_rate)
     print(f"  -> Dominant slot sınır kayması: {best_offset} sample")
     print(f"  -> Coarse frekans kayması: {best_freq} Hz (düzeltildi)")
-    
-    iq_rotated = iq_data * np.exp(-1j * 2 * np.pi * (2.4e6 + best_freq) * t)
-    
-    # Find multiple slot timing peaks in the folded P-SCH profile
+
+    iq_rotated, _n_frames = _rotate_search_window(
+        iq_data, sample_rate, best_offset, best_freq
+    )
+
     peaks = []
     sorted_indices = np.argsort(best_folded)[::-1]
     for idx in sorted_indices:
-        # Check if local maximum
         prev_idx = (idx - 1) % 5120
         next_idx = (idx + 1) % 5120
         if best_folded[idx] < best_folded[prev_idx] or best_folded[idx] < best_folded[next_idx]:
             continue
-        # Check distance to existing peaks
         too_close = False
         for p in peaks:
-            diff = abs(idx - p)
+            diff = abs(int(idx) - p)
             if diff > 2560:
                 diff = 5120 - diff
-            if diff < 512: # 256 chips separation
+            if diff < 512:
                 too_close = True
                 break
         if not too_close:
             if best_folded[idx] > 0.15 * np.max(best_folded):
-                peaks.append(idx)
+                peaks.append(int(idx))
             if len(peaks) >= max_cells:
                 break
-                
+
     print(f"  -> Tespit edilen aday slot zamanlama pik sayısı: {len(peaks)} (Offsets: {peaks})")
-    
-    ssc_templates = []
-    for k in range(1, 17):
-        ssc = generate_ssc(k)
-        ssc_templates.append(np.repeat(ssc, 2))
-        
+
     cells_found = {}
-    
     for slot_offset in peaks:
-        num_frames = (len(iq_rotated) - slot_offset) // 76800
-        if num_frames == 0:
+        n_avail = (len(iq_rotated) - slot_offset) // 76800
+        if n_avail == 0:
             continue
-            
-        # Construct average correlation matrix over all complete frames (15 slots x 16 SSCs)
-        ssc_corr_matrix = np.zeros((15, 16))
-        for f_idx in range(num_frames):
-            frame_start = slot_offset + f_idx * 76800
-            for slot_idx in range(15):
-                slot_start = frame_start + slot_idx * 5120
-                slot_segment = iq_rotated[slot_start : slot_start + 512]
-                if len(slot_segment) < 512:
-                    continue
-                for k in range(16):
-                    corr_val = np.abs(np.sum(slot_segment * ssc_templates[k].conj()))
-                    ssc_corr_matrix[slot_idx, k] += corr_val
-                    
-        # Match matrix against Comma-Free allocation table
-        best_score = -1
-        best_group = -1
-        best_shift = -1
-        
-        for g in range(64):
-            for shift in range(15):
-                score = 0
-                for slot_idx in range(15):
-                    ssc_idx = WCDMA_SSC_ALLOCATION[g][(slot_idx + shift) % 15] - 1
-                    score += ssc_corr_matrix[slot_idx, ssc_idx]
-                if score > best_score:
-                    best_score = score
-                    best_group = g
-                    best_shift = shift
-                    
+        n_frames = min(MAX_CELLSEARCH_FRAMES, n_avail)
+        ssc_corr_matrix = _ssc_corr_matrix(iq_rotated, slot_offset, n_frames)
+        best_group, best_shift, _best_score = _match_code_group(ssc_corr_matrix)
         frame_offset_slots = (15 - best_shift) % 15
         frame_boundary = slot_offset + frame_offset_slots * 5120
-        
-        # Test all 8 scrambling code candidates in the group
         candidates = [8 * best_group + k for k in range(8)]
         for sc_num in candidates:
-            gold_seq = generate_scrambling_code(sc_num, length=38400)
-            gold_upsampled = np.repeat(gold_seq, 2)
-            
-            best_sc_energy = -1
-            best_cpich_symbols = None
-            best_fine_delay = 0
-            
-            for delay in range(-32, 33):
-                start_idx = frame_boundary + delay
-                if start_idx < 0 or start_idx + 76800 > len(iq_rotated):
-                    continue
-                frame_iq_cand = iq_rotated[start_idx : start_idx + 76800]
-                descrambled = frame_iq_cand * gold_upsampled.conj()
-                
-                symbols = []
-                for sym_idx in range(150):
-                    sym_seg = descrambled[sym_idx * 512 : (sym_idx + 1) * 512]
-                    symbols.append(np.sum(sym_seg))
-                symbols = np.array(symbols, dtype=np.complex128)
-                pilot_corr = symbols / (1 + 1j)
-                sc_energy = np.sum(np.abs(pilot_corr)**2)
-                
-                if sc_energy > best_sc_energy:
-                    best_sc_energy = sc_energy
-                    best_cpich_symbols = symbols
-                    best_fine_delay = delay
-                    
-            rscp_linear = np.mean(np.abs(best_cpich_symbols)**2) / 524288.0
+            best_fine_delay, best_cpich_symbols, _energy = _cpich_search(
+                iq_rotated, frame_boundary, sc_num
+            )
+            if best_cpich_symbols is None:
+                continue
+            rscp_linear = np.mean(np.abs(best_cpich_symbols) ** 2) / 524288.0
             cell_frame_boundary = frame_boundary + best_fine_delay
             if cell_frame_boundary < 0 or cell_frame_boundary + 76800 > len(iq_rotated):
                 continue
             frame_iq_eq = iq_rotated[cell_frame_boundary : cell_frame_boundary + 76800]
-            rssi_linear = np.mean(np.abs(frame_iq_eq)**2)
+            rssi_linear = np.mean(np.abs(frame_iq_eq) ** 2)
             ecno_linear = rscp_linear / (rssi_linear + 1e-12)
-            
             rscp_dbm = 10.0 * np.log10(rscp_linear + 1e-12) - 30.0
             ecno_db = 10.0 * np.log10(ecno_linear + 1e-12)
-            
-            # Fine CFO estimation using CPICH phase rotation between consecutive symbols
             phase_diffs = best_cpich_symbols[1:] * best_cpich_symbols[:-1].conj()
             mean_phase_diff = np.angle(np.sum(phase_diffs))
             fine_cfo_hz = mean_phase_diff * 15000.0 / (2 * np.pi)
-            cell_cfo_hz = 2.4e6 + best_freq + fine_cfo_hz
-            
-            # If CPICH Ec/No is above a reasonable threshold, accept it
-            # We use -22.0 dB as a standard search threshold
+            cell_cfo_hz = best_freq + fine_cfo_hz
             if ecno_db > -22.0:
                 if sc_num not in cells_found or cells_found[sc_num]["cpich_ecno_db"] < ecno_db:
                     cells_found[sc_num] = {
@@ -603,9 +550,9 @@ def perform_multi_cell_search(iq_data, sample_rate=7.68e6, max_cells=4):
                         "frame_timing_sample": int(cell_frame_boundary),
                         "cpich_rscp_dbm": float(round(rscp_dbm, 2)),
                         "cpich_ecno_db": float(round(ecno_db, 2)),
-                        "frequency_correction_hz": float(cell_cfo_hz)
+                        "frequency_correction_hz": float(cell_cfo_hz),
                     }
-                    
+
     sorted_cells = sorted(cells_found.values(), key=lambda x: x["cpich_ecno_db"], reverse=True)
     return sorted_cells
 

@@ -20,7 +20,7 @@ import json
 import argparse
 import numpy as np
 
-from wcdma_sync import generate_scrambling_code
+from wcdma_sync import apply_channel_filter, generate_scrambling_code
 from wcdma_pccpch import c_code_256_1, extract_frame_symbols
 from wcdma_bch import col_perm_2nd, decode_viterbi, verify_crc16
 
@@ -203,54 +203,101 @@ def despread_frame(frame_iq, gold_conj, ovsf_512):
     return energy, h_slots, pccpch
 
 
-def main():
-    parser = argparse.ArgumentParser(description="WCDMA BCH Transport Channel Decoder")
-    parser.add_argument("--input", type=str, required=True, help="Path to complex64 IQ capture file")
-    parser.add_argument("--sc", type=int, default=None, help="Primary Scrambling Code (0-511)")
-    parser.add_argument("--timing", type=int, default=None, help="Frame start timing in samples")
-    parser.add_argument("--cfo", type=float, default=None, help="CFO correction frequency in Hz")
-    parser.add_argument("--force-search", action="store_true", help="Force full grid search instead of using default configuration")
-    parser.add_argument("--output", type=str, default=None, help="Path to write decoded BCH blocks JSON")
-    parser.add_argument(
-        "--max-frames",
-        type=int,
-        default=96,
-        help="Max 10 ms frames to extract (default 96 ≈ 1 s; SIB11 cycle is 0.64 s). 0 = all",
-    )
-    args = parser.parse_args()
-    
-    sc = args.sc
-    timing = args.timing
-    cfo = args.cfo
-    
+def _track_despread(iq_rotated, gold_conj, ovsf_512, timing, frame_idx):
+    delays = range(-8, 9) if frame_idx < 2 else range(-1, 2)
+    best_energy = -1.0
+    best_delay = 0
+    best_H_slots = None
+    best_pccpch_raw = None
+    n = len(iq_rotated)
+    for delay in delays:
+        start_idx = timing + delay
+        if start_idx < 0 or start_idx + 76800 > n:
+            continue
+        energy, h_slots, pccpch = despread_frame(
+            iq_rotated[start_idx : start_idx + 76800],
+            gold_conj,
+            ovsf_512,
+        )
+        if energy > best_energy:
+            best_energy = energy
+            best_delay = delay
+            best_H_slots = h_slots
+            best_pccpch_raw = pccpch
+    next_timing = timing + best_delay + 76800
+    return next_timing, np.repeat(best_H_slots, 9), np.asarray(best_pccpch_raw)
+
+
+def _sibs_complete(decoded_blocks, asn_db):
+    if not decoded_blocks or asn_db is None:
+        return False
+    try:
+        import wcdma_si_assembler as asm
+
+        return asm.sib_broadcast_complete(decoded_blocks, asn_db)
+    except Exception:
+        return False
+
+
+def decode_bch_capture(
+    input_path,
+    output_path=None,
+    sc=None,
+    timing=None,
+    cfo=None,
+    max_frames=240,
+    force_search=False,
+    iq_data=None,
+    asn_db=None,
+):
+    """Decode BCH from a capture. Returns the decoded_blocks dict (empty if CRC failed)."""
     if sc is None or timing is None or cfo is None:
-        json_path = args.input + ".results.json"
+        json_path = input_path + ".results.json"
         if os.path.exists(json_path):
             print(f"Reading parameters from metadata file: {json_path}")
-            with open(json_path, 'r') as f:
+            with open(json_path, "r") as f:
                 meta = json.load(f)
             if "cells" in meta and len(meta["cells"]) > 0:
                 cell = meta["cells"][0]
-                if sc is None: sc = cell["scrambling_code"]
-                if timing is None: timing = cell["frame_timing_sample"]
-                if cfo is None: cfo = cell["frequency_correction_hz"]
+                if sc is None:
+                    sc = cell["scrambling_code"]
+                if timing is None:
+                    timing = cell["frame_timing_sample"]
+                if cfo is None:
+                    cfo = cell["frequency_correction_hz"]
             else:
                 print("Error: No cell information found in results JSON.")
-                sys.exit(1)
+                return {}
         else:
             print(f"Error: Missing parameters and no results JSON found at {json_path}")
-            sys.exit(1)
-            
+            return {}
+
     print(f"Using parameters: SC={sc}, Frame Timing={timing}, CFO={cfo:.1f} Hz")
-    
-    print(f"Loading IQ data from {args.input}...")
-    n_all = os.path.getsize(args.input) // 8
-    num_frames = (n_all - timing) // 76800
-    if args.max_frames and args.max_frames > 0:
-        num_frames = min(num_frames, args.max_frames)
-    need = min(n_all, timing + num_frames * 76800 + 16)
-    iq_data = np.fromfile(args.input, dtype=np.complex64, count=need)
+    print(f"Loading IQ data from {input_path}...")
+    if iq_data is None:
+        n_all = os.path.getsize(input_path) // 8
+        num_frames = (n_all - timing) // 76800
+        if max_frames and max_frames > 0:
+            num_frames = min(num_frames, max_frames)
+        need = min(n_all, timing + num_frames * 76800 + 16)
+        iq_data = np.fromfile(input_path, dtype=np.complex64, count=need)
+    else:
+        n_all = len(iq_data)
+        num_frames = (n_all - timing) // 76800
+        if max_frames and max_frames > 0:
+            num_frames = min(num_frames, max_frames)
+        need = min(n_all, timing + num_frames * 76800 + 16)
+        iq_data = iq_data[:need]
     print(f"Loaded {len(iq_data)} samples ({len(iq_data)/7.68e6:.3f} seconds), {num_frames} frames")
+
+    if asn_db is None:
+        try:
+            from pathlib import Path
+            import wcdma_scan_report as report
+
+            asn_db = report.load_rrc_asn1(Path(__file__).resolve().parent)
+        except Exception:
+            asn_db = False
 
     frame_pccpch_raw = []
     frame_H_all = []
@@ -258,51 +305,34 @@ def main():
     ovsf_512 = np.repeat(c_code_256_1, 2).astype(np.float32)
 
     print("Performing digital downconversion & frequency correction...")
+    iq_data = apply_channel_filter(iq_data, 7.68e6)
     t = np.arange(len(iq_data)) / 7.68e6
     iq_rotated = iq_data * np.exp(-1j * 2 * np.pi * cfo * t)
 
     gold_seq = generate_scrambling_code(sc, length=38400)
     gold_conj = np.repeat(gold_seq, 2).conj().astype(np.complex64)
 
-    current_timing = timing
     print("Extracting frames (TTL wide on first frame, then track)...")
+    timing_box = [timing]
 
-    for f in range(num_frames):
-        delays = range(-8, 9) if f < 2 else range(-1, 2)
-        best_energy = -1.0
-        best_delay = 0
-        best_H_slots = None
-        best_pccpch_raw = None
-
-        for delay in delays:
-            start_idx = current_timing + delay
-            if start_idx < 0 or start_idx + 76800 > len(iq_rotated):
-                continue
-            energy, h_slots, pccpch = despread_frame(
-                iq_rotated[start_idx : start_idx + 76800],
-                gold_conj,
-                ovsf_512,
+    def pull_frame(idx):
+        while len(frame_pccpch_raw) <= idx:
+            f = len(frame_pccpch_raw)
+            nxt, h_all, pccpch = _track_despread(
+                iq_rotated, gold_conj, ovsf_512, timing_box[0], f
             )
-            if energy > best_energy:
-                best_energy = energy
-                best_delay = delay
-                best_H_slots = h_slots
-                best_pccpch_raw = pccpch
+            frame_pccpch_raw.append(pccpch)
+            frame_H_all.append(h_all)
+            timing_box[0] = nxt
 
-        current_timing += best_delay
-        frame_pccpch_raw.append(np.asarray(best_pccpch_raw))
-        frame_H_all.append(np.repeat(best_H_slots, 9))
-        current_timing += 76800
-
-    print("Frame extraction and despreading complete. Decoding...")
-    
     decoded_blocks = {}
     success_count = 0
-    
-    if not args.force_search:
+
+    if not force_search:
         print("Decoding using standard WCDMA configuration...")
         phase = None
         for f in range(min(8, num_frames - 1)):
+            pull_frame(f + 1)
             success, data_bits = decode_single_config(
                 frame_pccpch_raw[f], frame_pccpch_raw[f + 1],
                 frame_H_all[f], frame_H_all[f + 1], DEFAULT_CONFIG,
@@ -314,18 +344,27 @@ def main():
                 break
         if phase is not None:
             for f in range(phase, num_frames - 1, 2):
-                if f in decoded_blocks:
-                    continue
-                success, data_bits = decode_single_config(
-                    frame_pccpch_raw[f], frame_pccpch_raw[f + 1],
-                    frame_H_all[f], frame_H_all[f + 1], DEFAULT_CONFIG,
-                )
-                if success:
-                    success_count += 1
-                    decoded_blocks[f] = {"hex": bits_to_hex(data_bits), "config": DEFAULT_CONFIG}
-                
-    if success_count == 0 or args.force_search:
-        if not args.force_search:
+                pull_frame(f + 1)
+                if f not in decoded_blocks:
+                    success, data_bits = decode_single_config(
+                        frame_pccpch_raw[f], frame_pccpch_raw[f + 1],
+                        frame_H_all[f], frame_H_all[f + 1], DEFAULT_CONFIG,
+                    )
+                    if success:
+                        success_count += 1
+                        decoded_blocks[f] = {
+                            "hex": bits_to_hex(data_bits),
+                            "config": DEFAULT_CONFIG,
+                        }
+                if _sibs_complete(decoded_blocks, asn_db):
+                    print(
+                        f"SIB5/11/19 complete after {len(frame_pccpch_raw)} frames, "
+                        f"{success_count} BCH blocks"
+                    )
+                    break
+
+    if success_count == 0 or force_search:
+        if not force_search:
             print("\n[-] Standard configuration failed. Falling back to full grid search...")
         else:
             print("\n[!] Forcing full grid search over 64 combinations...")
@@ -337,11 +376,11 @@ def main():
         test_limit = min(10, num_frames - 1)
         print(f"Searching for a valid receiver configuration on the first {test_limit} frames...")
         for f in range(test_limit):
-            f0_raw = frame_pccpch_raw[f]
-            f1_raw = frame_pccpch_raw[f+1]
-            H0 = frame_H_all[f]
-            H1 = frame_H_all[f+1]
-            success, data_bits, config = run_decode_grid_search(f0_raw, f1_raw, H0, H1)
+            pull_frame(f + 1)
+            success, data_bits, config = run_decode_grid_search(
+                frame_pccpch_raw[f], frame_pccpch_raw[f + 1],
+                frame_H_all[f], frame_H_all[f + 1],
+            )
             if success:
                 found_config = config
                 print(f"[+] Found working configuration at frame pair ({f}, {f+1}): {config}")
@@ -350,11 +389,11 @@ def main():
         if found_config:
             print(f"Decoding TTI pairs using the found configuration...")
             for f in range(0, num_frames - 1, 2):
-                f0_raw = frame_pccpch_raw[f]
-                f1_raw = frame_pccpch_raw[f+1]
-                H0 = frame_H_all[f]
-                H1 = frame_H_all[f+1]
-                success, data_bits = decode_single_config(f0_raw, f1_raw, H0, H1, found_config)
+                pull_frame(f + 1)
+                success, data_bits = decode_single_config(
+                    frame_pccpch_raw[f], frame_pccpch_raw[f + 1],
+                    frame_H_all[f], frame_H_all[f + 1], found_config,
+                )
                 if success:
                     hex_str = bits_to_hex(data_bits)
                     print(f"[+] Decoded block at frame pair ({f}, {f+1}) SFN-like counter: {hex_str[2:4]} (Hex: {hex_str[:16]}...)")
@@ -363,18 +402,49 @@ def main():
                         "hex": hex_str,
                         "config": found_config
                     }
+                if _sibs_complete(decoded_blocks, asn_db):
+                    break
         else:
             print("[-] Grid search failed. No valid receiver configuration could be found (signal might be too weak).")
             
     if success_count > 0:
         print(f"\n[+] Decoded {success_count} BCH transport blocks successfully!")
-        out_json_path = args.output if args.output is not None else args.input + ".bch.json"
-        with open(out_json_path, 'w') as f:
+        out_json_path = output_path if output_path is not None else input_path + ".bch.json"
+        with open(out_json_path, "w") as f:
             json.dump(decoded_blocks, f, indent=2)
         print(f"Results written to {out_json_path}")
     else:
         print("\n[-] BCH decoding failed. No blocks passed the CRC16 check.")
+    return decoded_blocks
+
+
+def main():
+    parser = argparse.ArgumentParser(description="WCDMA BCH Transport Channel Decoder")
+    parser.add_argument("--input", type=str, required=True, help="Path to complex64 IQ capture file")
+    parser.add_argument("--sc", type=int, default=None, help="Primary Scrambling Code (0-511)")
+    parser.add_argument("--timing", type=int, default=None, help="Frame start timing in samples")
+    parser.add_argument("--cfo", type=float, default=None, help="CFO correction frequency in Hz")
+    parser.add_argument("--force-search", action="store_true", help="Force full grid search instead of using default configuration")
+    parser.add_argument("--output", type=str, default=None, help="Path to write decoded BCH blocks JSON")
+    parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=240,
+        help="Max 10 ms frames to extract (default 240 ≈ 2.4 s of a 3 s capture; 16-seg SIB11 needs >1 s). 0 = all",
+    )
+    args = parser.parse_args()
+    blocks = decode_bch_capture(
+        args.input,
+        output_path=args.output,
+        sc=args.sc,
+        timing=args.timing,
+        cfo=args.cfo,
+        max_frames=args.max_frames,
+        force_search=args.force_search,
+    )
+    if not blocks:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

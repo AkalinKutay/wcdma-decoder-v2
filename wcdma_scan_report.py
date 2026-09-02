@@ -19,16 +19,62 @@ import os
 import sys
 import glob
 import json
-import asn1tools
+import hashlib
+import pickle
+import re
 from datetime import datetime
+from pathlib import Path
+import asn1tools
 import wcdma_si_assembler
 
+ASN_FILE_NAMES = (
+    "Constant-definitions.asn",
+    "Class-definitions.asn",
+    "InformationElements.asn",
+    "PDU-definitions.asn",
+    "Internode-definitions.asn",
+)
+
+
+def asn1_files(root=None):
+    root = Path(root) if root is not None else Path(__file__).resolve().parent
+    return [root / "wcdma_rrc_asn1" / n for n in ASN_FILE_NAMES]
+
+
+def load_rrc_asn1(root=None):
+    """Compile TS 25.331 ASN.1, reusing a pickle cache keyed by file mtimes."""
+    files = asn1_files(root)
+    stamp_parts = [
+        sys.version,
+        getattr(asn1tools, "__version__", ""),
+    ]
+    for path in files:
+        st = path.stat()
+        stamp_parts.append(f"{path.name}:{st.st_mtime_ns}:{st.st_size}")
+    key = hashlib.sha256("|".join(stamp_parts).encode()).hexdigest()[:16]
+    cache_dir = Path.home() / ".cache" / "wcdma-sib-scan"
+    cache_path = cache_dir / f"asn1-{key}.pkl"
+    if cache_path.exists():
+        try:
+            with open(cache_path, "rb") as fh:
+                return pickle.load(fh)
+        except Exception:
+            pass
+    db = asn1tools.compile_files([str(p) for p in files], "uper")
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, "wb") as fh:
+            pickle.dump(db, fh, protocol=pickle.HIGHEST_PROTOCOL)
+    except Exception:
+        pass
+    return db
+
 def uarfcn_to_freq(uarfcn):
-    if 10562 <= uarfcn <= 10838:
-        return 2110.0 + 0.2 * (uarfcn - 10562)
-    elif 2937 <= uarfcn <= 3088:
-        return 925.0 + 0.2 * (uarfcn - 2937)
-    else:
+    try:
+        from wcdma_bands import uarfcn_to_dl_mhz
+
+        return uarfcn_to_dl_mhz(int(uarfcn))
+    except Exception:
         return 0.0
 
 def earfcn_to_freq_band(earfcn):
@@ -74,6 +120,7 @@ def decode_sib_data(bch_json_path, db):
         "rnc_id": "N/A",
         "local_cell_id": "N/A",
         "wcdma_neighbors": [],
+        "wcdma_intra_pscs": [],
         "lte_neighbors": [],
         "gsm_neighbors": []
     }
@@ -96,10 +143,46 @@ def decode_sib_data(bch_json_path, db):
             info["rnc_id"] = str(rnc_id)
             info["local_cell_id"] = str(cell_id)
             
-    if 'SIB11' in sibs:
-        sib11 = sibs['SIB11']
-        info["wcdma_neighbors"] = wcdma_si_assembler.extract_sib11_fdd_interfreq(sib11)
-        info["gsm_neighbors"] = wcdma_si_assembler.extract_sib11_gsm(sib11)
+    serving_u = None
+    try:
+        m = re.search(r"uarfcn_(\d+)", Path(bch_json_path).name)
+        if m:
+            serving_u = int(m.group(1))
+    except Exception:
+        pass
+
+    intra, inter, gsm = [], [], []
+    if sibs.get("SIB11"):
+        intra.extend(wcdma_si_assembler.extract_sib11_fdd_intrafreq(sibs["SIB11"]))
+        inter.extend(wcdma_si_assembler.extract_sib11_fdd_interfreq(sibs["SIB11"], serving_uarfcn=serving_u))
+        gsm.extend(wcdma_si_assembler.extract_sib11_gsm(sibs["SIB11"]))
+    if sibs.get("SIB11bis"):
+        intra.extend(wcdma_si_assembler.extract_sib11bis_fdd_intrafreq(sibs["SIB11bis"]))
+        inter.extend(wcdma_si_assembler.extract_sib11bis_fdd_interfreq(sibs["SIB11bis"], serving_uarfcn=serving_u))
+        gsm.extend(wcdma_si_assembler.extract_sib11bis_gsm(sibs["SIB11bis"]))
+    if sibs.get("SIB12"):
+        intra.extend(wcdma_si_assembler.extract_sib11_fdd_intrafreq(sibs["SIB12"]))
+        inter.extend(wcdma_si_assembler.extract_sib11_fdd_interfreq(sibs["SIB12"], serving_uarfcn=serving_u))
+        gsm.extend(wcdma_si_assembler.extract_sib11_gsm(sibs["SIB12"]))
+
+    seen_psc = set()
+    info["wcdma_intra_pscs"] = [p for p in intra if not (p in seen_psc or seen_psc.add(p))]
+    seen_inter = set()
+    info["wcdma_neighbors"] = []
+    for n in inter:
+        key = (n.get("uarfcn"), n.get("psc"))
+        if key in seen_inter:
+            continue
+        seen_inter.add(key)
+        info["wcdma_neighbors"].append(n)
+    seen_gsm = set()
+    info["gsm_neighbors"] = []
+    for n in gsm:
+        key = (n.get("arfcn"), n.get("bsic"))
+        if key in seen_gsm:
+            continue
+        seen_gsm.add(key)
+        info["gsm_neighbors"].append(n)
                                 
     if 'SIB19' in sibs:
         sib19 = sibs['SIB19']
@@ -140,17 +223,9 @@ def main():
     args = parser.parse_args()
 
     print("[*] Birleşik Tarama Raporu Oluşturucu")
-    
-    # Compile ASN.1
-    asn_files = [
-        "wcdma_rrc_asn1/Constant-definitions.asn",
-        "wcdma_rrc_asn1/Class-definitions.asn",
-        "wcdma_rrc_asn1/InformationElements.asn",
-        "wcdma_rrc_asn1/PDU-definitions.asn",
-        "wcdma_rrc_asn1/Internode-definitions.asn"
-    ]
+
     try:
-        db = asn1tools.compile_files(asn_files, 'uper')
+        db = load_rrc_asn1()
     except Exception as e:
         print(f"[-] ASN.1 derleme hatası: {e}")
         sys.exit(1)
@@ -237,6 +312,16 @@ def main():
             
             if sib_info:
                 # Add to neighbor list collections
+                serving_uarfcn = int(uarfcn) if uarfcn is not None else None
+                for psc in sib_info.get("wcdma_intra_pscs") or []:
+                    if serving_uarfcn is None or int(psc) == int(sc):
+                        continue
+                    wcdma_neighbors_all.append({
+                        "serving_sc": sc,
+                        "cell_id": None,
+                        "uarfcn": serving_uarfcn,
+                        "psc": int(psc),
+                    })
                 for n in sib_info["wcdma_neighbors"]:
                     wcdma_neighbors_all.append({
                         "serving_sc": sc,

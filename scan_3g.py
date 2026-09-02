@@ -3,17 +3,20 @@
 
 Each UARFCN prints one cell block to stdout as soon as it is done.
 Timestamped files go to results/<YYYYMMDD-HHMMSS>.{json,csv,log}.
+IQ: default overwrites captures/uarfcn_<N>.cfile; --iq keeps
+captures/<stamp>_uarfcn_<N>.cfile.
 
-  python3 scan_3g.py
-  python3 scan_3g.py --uarfcn 10813
+  python3 scan_3g.py --band 1 --uarfcn 10813
+  python3 scan_3g.py --band 8 --uarfcn 2997
+  python3 scan_3g.py --iq --band 8 --uarfcn 2938 2963
   python3 scan_3g.py --check
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
-import os
-import subprocess
 import sys
 import time
 from collections import defaultdict
@@ -21,11 +24,29 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-CAPTURE_PY = ROOT / "uhd_capture.py"
 DEFAULT_OUT_DIR = ROOT / "results"
 
-DEFAULT_UARFCNS = (10813, 10838, 2997, 2938, 2963, 3018)
-GAIN = {"b1": 32.0, "b8": 45.0}
+DEFAULT_GAIN_DB = 40.0
+HELP_EPILOG = """\
+FDD bands (3GPP TS 25.101):  F_DL = N/5 + FDL_Offset
+  --band 1   2100   UARFCN 10562-10838
+  --band 2   1900   UARFCN 9662-9938
+  --band 4   1700   UARFCN 1537-1738
+  --band 5    850   UARFCN 4357-4458
+  --band 6    800   UARFCN 4387-4413
+  --band 8    900   UARFCN 2937-3088
+  --band 19   850   UARFCN 712-763
+
+  ./run-scan.sh --band 1 --uarfcn 10813
+  ./run-scan.sh --band 8 --uarfcn 2997
+  ./run-scan.sh --iq --band 8 --uarfcn 2938 2963
+  ./run-scan.sh --uarfcn 10813
+
+known Turkey UARFCNs (--band 1 or 8 without --uarfcn):
+  TURKCELL      10563 10588 10613 10638 10813 10838 2997 3018
+  VODAFONE TR   10663 10688 10713
+  TURK TELEKOM  10738 10763 10788 2938 2963
+"""
 ECNO_MIN_DB = -22.0
 OPERATORS = {
     ("286", "01"): "Turkcell",
@@ -37,44 +58,45 @@ OPERATORS = {
 }
 
 
-def band_of(uarfcn: int) -> str:
-    if 10562 <= uarfcn <= 10838:
-        return "b1"
-    if 2937 <= uarfcn <= 3088:
-        return "b8"
-    raise ValueError(f"UARFCN {uarfcn} not Band 1 or Band 8")
+def band_of(uarfcn: int) -> int:
+    from wcdma_bands import band_of_uarfcn
+
+    return band_of_uarfcn(uarfcn)
 
 
-def freq_mhz(uarfcn: int) -> float:
-    if band_of(uarfcn) == "b1":
-        return 2110.0 + 0.2 * (uarfcn - 10562)
-    return 925.0 + 0.2 * (uarfcn - 2937)
+def freq_mhz(uarfcn: int, band: int | None = None) -> float:
+    from wcdma_bands import uarfcn_to_dl_mhz
+
+    return uarfcn_to_dl_mhz(uarfcn, band)
 
 
 def scan_stamp(when: datetime | None = None) -> str:
     return (when or datetime.now().astimezone()).strftime("%Y%m%d-%H%M%S")
 
 
-def run_quiet(cmd: list[str], cwd: Path, timeout: int) -> tuple[int, str]:
-    env = os.environ.copy()
-    env["PYTHONUNBUFFERED"] = "1"
-    proc = subprocess.run(
-        cmd,
-        cwd=str(cwd),
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
-    text = (proc.stdout or "") + (proc.stderr or "")
-    return proc.returncode, text
+def infer_serving_uarfcn(tuned: int, serving_psc: int, inter_neighbors: list[dict]) -> int | None:
+    """SIB11 often lists a co-sited 5 MHz carrier with the same PSC.
 
-
-def load_json(path: Path):
-    if not path.exists():
+    If that DL UARFCN is 25 channels (5 MHz) from an in-band candidate, that
+    candidate is the serving carrier. Used to reject 10788 decoding 10813.
+    """
+    if serving_psc is None:
         return None
-    return json.loads(path.read_text())
+    for n in inter_neighbors or []:
+        if n.get("psc") != serving_psc:
+            continue
+        co = n.get("uarfcn")
+        if co is None:
+            continue
+        co = int(co)
+        for cand in (co - 25, co + 25):
+            try:
+                band_of(cand)
+            except ValueError:
+                continue
+            if cand != co:
+                return cand
+    return None
 
 
 def group_wcdma(neighbors: list[dict]) -> dict[int, list[int]]:
@@ -129,19 +151,9 @@ def print_cell(cell: dict) -> None:
 
 def compile_asn():
     sys.path.insert(0, str(ROOT))
-    import asn1tools  # noqa: WPS433
+    import wcdma_scan_report as report  # noqa: WPS433
 
-    files = [
-        str(ROOT / "wcdma_rrc_asn1" / n)
-        for n in (
-            "Constant-definitions.asn",
-            "Class-definitions.asn",
-            "InformationElements.asn",
-            "PDU-definitions.asn",
-            "Internode-definitions.asn",
-        )
-    ]
-    return asn1tools.compile_files(files, "uper")
+    return report.load_rrc_asn1(ROOT)
 
 
 def scan_uarfcn(
@@ -151,14 +163,20 @@ def scan_uarfcn(
     captures: Path,
     db,
     serial: str | None = None,
+    usrp=None,
+    antenna: str | None = None,
+    gain_db: float = DEFAULT_GAIN_DB,
+    band: int | None = None,
+    stamp: str = "",
 ) -> tuple[dict, str]:
-    band = band_of(uarfcn)
+    if band is None:
+        band = band_of(uarfcn)
     cell: dict = {
         "uarfcn": uarfcn,
-        "freq_mhz": round(freq_mhz(uarfcn), 1),
-        "band": "1" if band == "b1" else "8",
+        "freq_mhz": round(freq_mhz(uarfcn, band), 1),
+        "band": str(band),
         "serial": "",
-        "gain_db": GAIN[band],
+        "gain_db": float(gain_db),
         "status": "empty",
         "note": "",
         "psc": None,
@@ -171,9 +189,13 @@ def scan_uarfcn(
         "wcdma_neighbors": [],
         "lte_neighbors": [],
         "gsm_neighbors": [],
+        "iq_file": "",
+        "bch_file": "",
     }
     log: list[str] = [f"===== UARFCN {uarfcn} ====="]
-    cfile = captures / f"uarfcn_{uarfcn}.cfile"
+    prefix = f"{stamp}_uarfcn_{uarfcn}" if stamp else f"uarfcn_{uarfcn}"
+    cfile = captures / f"{prefix}.cfile"
+    cell["iq_file"] = str(cfile.relative_to(ROOT))
     print(
         f"# {uarfcn}  {cell['freq_mhz']:.1f} MHz  B{cell['band']}  "
         f"gain={cell['gain_db']:.0f}",
@@ -181,39 +203,53 @@ def scan_uarfcn(
         flush=True,
     )
 
-    cap_cmd = [
-        sys.executable,
-        str(CAPTURE_PY),
-        "--uarfcn",
-        str(uarfcn),
-        "--duration",
-        str(duration),
-        "--gain",
-        str(cell["gain_db"]),
-        "--output",
-        str(cfile),
-    ]
-    if serial:
-        cap_cmd.extend(["--serial", serial])
-    rc, text = run_quiet(
-        cap_cmd,
-        ROOT,
-        timeout=max(90, int(duration) + 60),
-    )
-    log.append(text)
-    if rc != 0 or not cfile.exists():
+    sys.path.insert(0, str(ROOT))
+    import numpy as np
+    import uhd_capture
+    import wcdma_bch_decode
+    import wcdma_cellsearch
+    import wcdma_scan_report as report  # noqa: WPS433
+
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            if usrp is None:
+                usrp, opened_serial = uhd_capture.open_free_usrp(serial)
+                antenna = uhd_capture.pick_antenna(usrp, antenna or "auto")
+                serial = opened_serial
+            iq_data = uhd_capture.capture_iq(
+                usrp,
+                uarfcn,
+                duration,
+                cell["gain_db"],
+                cfile,
+                antenna=antenna or "RX2",
+                serial=serial or "",
+                band=band,
+            )
+        log.append(buf.getvalue())
+        cell["serial"] = serial or ""
+    except Exception as exc:
         cell["status"] = "capture-fail"
-        cell["note"] = f"capture exit {rc}"
+        cell["note"] = f"capture error: {exc}"
+        log.append(str(exc))
+        return cell, "\n".join(log)
+    if not cfile.exists():
+        cell["status"] = "capture-fail"
+        cell["note"] = "capture missing cfile"
         return cell, "\n".join(log)
 
-    rc, text = run_quiet(
-        [sys.executable, "wcdma_cellsearch.py", "--input", str(cfile)],
-        ROOT,
-        timeout=300,
-    )
-    log.append(text)
-    results = load_json(Path(str(cfile) + ".results.json"))
-    found = (results or {}).get("cells") or []
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            search = wcdma_cellsearch.search_capture(str(cfile), iq_data=iq_data)
+        log.append(buf.getvalue())
+    except Exception as exc:
+        cell["status"] = "no-cell"
+        cell["note"] = f"cell search error: {exc}"
+        return cell, "\n".join(log)
+
+    found = (search or {}).get("cells") or []
     if not found:
         cell["status"] = "no-cell"
         cell["note"] = "cell search empty"
@@ -231,32 +267,22 @@ def scan_uarfcn(
     if skip_sib:
         return cell, "\n".join(log)
 
-    bch_path = captures / f"uarfcn_{uarfcn}_sc{cell['psc']}.bch.json"
-    rc, text = run_quiet(
-        [
-            sys.executable,
-            "wcdma_bch_decode.py",
-            "--input",
+    bch_path = captures / f"{prefix}_sc{cell['psc']}.bch.json"
+    cell["bch_file"] = str(bch_path.relative_to(ROOT))
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        blocks = wcdma_bch_decode.decode_bch_capture(
             str(cfile),
-            "--output",
-            str(bch_path),
-            "--max-frames",
-            "96",
-        ],
-        ROOT,
-        timeout=600,
-    )
-    log.append(text)
-    if rc != 0 or not bch_path.exists():
+            output_path=str(bch_path),
+            iq_data=iq_data,
+            max_frames=240,
+            asn_db=db,
+        )
+    log.append(buf.getvalue())
+    if not blocks or not bch_path.exists():
         cell["status"] = "bch-fail"
-        cell["note"] = f"BCH exit {rc}"
+        cell["note"] = "BCH CRC empty"
         return cell, "\n".join(log)
-
-    sys.path.insert(0, str(ROOT))
-    import contextlib
-    import io
-
-    import wcdma_scan_report as report  # noqa: WPS433
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -278,7 +304,29 @@ def scan_uarfcn(
         cell["cid"] = str(sib["cell_id"])
     if sib.get("rnc_id") not in (None, "N/A"):
         cell["rnc"] = str(sib["rnc_id"])
-    cell["wcdma_neighbors"] = sib.get("wcdma_neighbors") or []
+    inter = sib.get("wcdma_neighbors") or []
+    inferred = infer_serving_uarfcn(uarfcn, cell["psc"], inter)
+    if inferred is not None and inferred != uarfcn:
+        cell["status"] = "adjacent"
+        cell["note"] = (
+            f"SIB is UARFCN {inferred} PSC {cell['psc']} leaked into tuned {uarfcn}"
+        )
+        cell["plmn"] = ""
+        cell["operator"] = ""
+        cell["cid"] = ""
+        cell["rnc"] = ""
+        cell["wcdma_neighbors"] = []
+        cell["lte_neighbors"] = []
+        cell["gsm_neighbors"] = []
+        return cell, "\n".join(log)
+
+    wcdma = []
+    for psc in sib.get("wcdma_intra_pscs") or []:
+        if int(psc) == cell["psc"]:
+            continue
+        wcdma.append({"uarfcn": uarfcn, "psc": int(psc)})
+    wcdma.extend(inter)
+    cell["wcdma_neighbors"] = wcdma
     cell["lte_neighbors"] = sib.get("lte_neighbors") or []
     cell["gsm_neighbors"] = sib.get("gsm_neighbors") or []
     return cell, "\n".join(log)
@@ -298,6 +346,8 @@ def write_csv(path: Path, cells: list[dict]) -> None:
         "rnc",
         "status",
         "note",
+        "iq_file",
+        "bch_file",
     ]
     lines = [",".join(cols)]
     for cell in cells:
@@ -355,16 +405,40 @@ def preflight() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="WCDMA UARFCN scanner (first free USRP)")
+    parser = argparse.ArgumentParser(
+        description="WCDMA UARFCN scanner (first free USRP)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=HELP_EPILOG,
+    )
+    parser.add_argument(
+        "--band",
+        type=int,
+        nargs="+",
+        default=None,
+        metavar="N",
+        help="FDD band(s): 1 2 4 5 6 8 19 (with --uarfcn, or TR defaults for 1 and 8)",
+    )
     parser.add_argument(
         "--uarfcn",
         type=int,
-        nargs="+",
-        default=list(DEFAULT_UARFCNS),
-        help="UARFCN list (default: 10813 10838 2997 2938 2963 3018)",
+        nargs="*",
+        default=None,
+        help="UARFCN list (optional if --band 1 or 8)",
     )
     parser.add_argument("--duration", type=float, default=3.0, help="IQ capture seconds (default 3)")
+    parser.add_argument(
+        "-g",
+        "--gain",
+        type=float,
+        default=DEFAULT_GAIN_DB,
+        help=f"USRP RX gain dB (default {DEFAULT_GAIN_DB:.0f})",
+    )
     parser.add_argument("--skip-sib", action="store_true")
+    parser.add_argument(
+        "--iq",
+        action="store_true",
+        help="Keep timestamped IQ (captures/<stamp>_uarfcn_<N>.cfile). Default overwrites captures/uarfcn_<N>.cfile",
+    )
     parser.add_argument("--serial", type=str, default=None, help="Optional USRP serial; default = first free")
     parser.add_argument("--check", action="store_true", help="Verify deps and radios, then exit")
     parser.add_argument("-o", "--out-dir", type=Path, default=DEFAULT_OUT_DIR)
@@ -376,6 +450,27 @@ def main(argv: list[str] | None = None) -> int:
     uhd_capture.apply_uhd_images()
     if args.check:
         return preflight()
+
+    from wcdma_bands import band_of_uarfcn, resolve_scan_list, uarfcn_in_band
+
+    try:
+        targets = resolve_scan_list(args.band, args.uarfcn)
+    except ValueError as exc:
+        print(f"FAIL  {exc}", file=sys.stderr)
+        return 2
+
+    band_hint: dict[int, int] = {}
+    if args.band:
+        for u in targets:
+            for b in args.band:
+                if uarfcn_in_band(u, b):
+                    band_hint[u] = b
+                    break
+            else:
+                band_hint[u] = band_of_uarfcn(u)
+    else:
+        for u in targets:
+            band_hint[u] = band_of_uarfcn(u)
 
     captures = ROOT / "captures"
     captures.mkdir(parents=True, exist_ok=True)
@@ -400,9 +495,12 @@ def main(argv: list[str] | None = None) -> int:
             "status": status,
             "started": started.isoformat(),
             "finished": datetime.now().astimezone().isoformat(),
-            "uarfcns": args.uarfcn,
+            "uarfcns": targets,
+            "bands": args.band,
             "duration": args.duration,
+            "gain_db": args.gain,
             "skip_sib": args.skip_sib,
+            "iq": args.iq,
             "cells": cells,
         }
         paths["json"].write_text(json.dumps(payload, indent=2, default=str) + "\n")
@@ -410,25 +508,31 @@ def main(argv: list[str] | None = None) -> int:
         paths["log"].write_text("\n\n".join(logs) + "\n")
 
     try:
-        for uarfcn in args.uarfcn:
-            try:
-                cell, log = scan_uarfcn(
-                    uarfcn, args.duration, args.skip_sib, captures, db, args.serial
-                )
-            except subprocess.TimeoutExpired:
-                cell = {
-                    "uarfcn": uarfcn,
-                    "freq_mhz": freq_mhz(uarfcn),
-                    "band": "1" if band_of(uarfcn) == "b1" else "8",
-                    "status": "timeout",
-                    "note": "timeout",
-                    "psc": None,
-                }
-                log = f"===== UARFCN {uarfcn} TIMEOUT ====="
+        usrp, serial = uhd_capture.open_free_usrp(args.serial)
+        antenna = uhd_capture.pick_antenna(usrp, "auto")
+    except Exception as exc:
+        print(f"FAIL  USRP open: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        for uarfcn in targets:
+            cell, log = scan_uarfcn(
+                uarfcn,
+                args.duration,
+                args.skip_sib,
+                captures,
+                db,
+                serial,
+                usrp=usrp,
+                antenna=antenna,
+                gain_db=args.gain,
+                band=band_hint[uarfcn],
+                stamp=stamp if args.iq else "",
+            )
             cells.append(cell)
             logs.append(log)
             print_cell(cell)
-            persist("partial" if uarfcn != args.uarfcn[-1] else "complete")
+            persist("partial" if uarfcn != targets[-1] else "complete")
     except KeyboardInterrupt:
         persist("interrupted")
         print("interrupted", file=sys.stderr)

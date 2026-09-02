@@ -1,3 +1,5 @@
+# System (Debian/Ubuntu): python3-numpy python3-scipy python3-uhd uhd-host
+# ./setup.sh installs those via apt, then this via pip:
+asn1tools
 numpy
 scipy
-asn1tools

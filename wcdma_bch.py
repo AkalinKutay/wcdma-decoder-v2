@@ -74,7 +74,7 @@ for ns in range(256):
     PREV_STATES[ns, 0] = (ns & 0x7F) << 1
     PREV_STATES[ns, 1] = ((ns & 0x7F) << 1) | 1
 
-# Convert to standard Python lists for faster execution
+# Convert to standard Python lists for the reference decoder
 PREV_STATES_LIST = PREV_STATES.tolist()
 # EXP_OUTPUTS[s][u] stores BPSK mapped expected outputs: (1.0 - 2.0 * v0, 1.0 - 2.0 * v1)
 EXP_OUTPUTS = []
@@ -85,10 +85,60 @@ for s in range(256):
         s_exps.append((float(1.0 - 2.0 * v0), float(1.0 - 2.0 * v1)))
     EXP_OUTPUTS.append(s_exps)
 
+# Vector ACS tables: for each next-state, two predecessors and their expected BPSK symbols
+ACS_PS0 = PREV_STATES[:, 0].astype(np.intp)
+ACS_PS1 = PREV_STATES[:, 1].astype(np.intp)
+ACS_U = (np.arange(256) >> 7)
+_EXP_ARR = 1.0 - 2.0 * OUTPUTS.astype(np.float64)  # (state, u, 2)
+ACS_EXP0 = _EXP_ARR[ACS_PS0, ACS_U]
+ACS_EXP1 = _EXP_ARR[ACS_PS1, ACS_U]
+
+
+def decode_viterbi_ref(soft_bits):
+    """
+    Reference 256-state Viterbi (pure Python ACS). Used only in tests.
+    """
+    n_symbols = len(soft_bits) // 2
+    path_metrics = [float("inf")] * 256
+    path_metrics[0] = 0.0
+    tb_paths = [[0] * 256 for _ in range(n_symbols)]
+    sb_list = list(soft_bits)
+    prev_states = PREV_STATES_LIST
+    exp_outputs = EXP_OUTPUTS
+    for k in range(n_symbols):
+        r0 = sb_list[2 * k]
+        r1 = sb_list[2 * k + 1]
+        new_path_metrics = [float("inf")] * 256
+        for ns in range(256):
+            u = ns >> 7
+            ps0 = prev_states[ns][0]
+            ps1 = prev_states[ns][1]
+            exp0_0, exp0_1 = exp_outputs[ps0][u]
+            exp1_0, exp1_1 = exp_outputs[ps1][u]
+            m0 = path_metrics[ps0] + (r0 - exp0_0) ** 2 + (r1 - exp0_1) ** 2
+            m1 = path_metrics[ps1] + (r0 - exp1_0) ** 2 + (r1 - exp1_1) ** 2
+            if m0 < m1:
+                new_path_metrics[ns] = m0
+                tb_paths[k][ns] = ps0
+            else:
+                new_path_metrics[ns] = m1
+                tb_paths[k][ns] = ps1
+        path_metrics = new_path_metrics
+    best_state = 0
+    decoded_bits = []
+    for k in range(n_symbols - 1, -1, -1):
+        prev_state = tb_paths[k][best_state]
+        decoded_bits.append(best_state >> 7)
+        best_state = prev_state
+    decoded_bits.reverse()
+    return np.array(decoded_bits, dtype=np.int8)
+
+
 def decode_viterbi(soft_bits):
     """
     256-state Viterbi decoder for WCDMA Rate 1/2 Convolutional Code (K=9).
     Generator polynomials: G0 = 561 (octal), G1 = 753 (octal).
+    Euclidean ACS is the same as decode_viterbi_ref, vectorized over the 256 states.
     Input:
         soft_bits: numpy array of floats (real, imag, real, imag, ...)
                    where positive maps to bit 0, negative maps to bit 1.
@@ -96,55 +146,32 @@ def decode_viterbi(soft_bits):
         decoded_bits: numpy array of 270 bits (including tail bits)
     """
     n_symbols = len(soft_bits) // 2
-    
-    # Path metrics initialized to infinity except state 0
-    path_metrics = [float('inf')] * 256
+    sb = np.asarray(soft_bits, dtype=np.float64).reshape(n_symbols, 2)
+    path_metrics = np.full(256, np.inf, dtype=np.float64)
     path_metrics[0] = 0.0
-    
-    tb_paths = [[0] * 256 for _ in range(n_symbols)]
-    sb_list = list(soft_bits)
-    
-    # Pull global list references to local variables to speed up access
-    prev_states = PREV_STATES_LIST
-    exp_outputs = EXP_OUTPUTS
-    
+    tb_paths = np.empty((n_symbols, 256), dtype=np.uint16)
+    ps0 = ACS_PS0
+    ps1 = ACS_PS1
+    exp0 = ACS_EXP0
+    exp1 = ACS_EXP1
     for k in range(n_symbols):
-        r0 = sb_list[2*k]
-        r1 = sb_list[2*k+1]
-        new_path_metrics = [float('inf')] * 256
-        
-        for ns in range(256):
-            u = ns >> 7
-            ps0 = prev_states[ns][0]
-            ps1 = prev_states[ns][1]
-            
-            exp0_0, exp0_1 = exp_outputs[ps0][u]
-            exp1_0, exp1_1 = exp_outputs[ps1][u]
-            
-            m0 = path_metrics[ps0] + (r0 - exp0_0)**2 + (r1 - exp0_1)**2
-            m1 = path_metrics[ps1] + (r0 - exp1_0)**2 + (r1 - exp1_1)**2
-            
-            if m0 < m1:
-                new_path_metrics[ns] = m0
-                tb_paths[k][ns] = ps0
-            else:
-                new_path_metrics[ns] = m1
-                tb_paths[k][ns] = ps1
-                
-        path_metrics = new_path_metrics
-        
-    # Traceback from state 0 (encoder is terminated to state 0 by 8 tail bits)
+        r0 = sb[k, 0]
+        r1 = sb[k, 1]
+        d0 = r0 - exp0[:, 0]
+        d1 = r1 - exp0[:, 1]
+        m0 = path_metrics[ps0] + d0 * d0 + d1 * d1
+        d0 = r0 - exp1[:, 0]
+        d1 = r1 - exp1[:, 1]
+        m1 = path_metrics[ps1] + d0 * d0 + d1 * d1
+        choose0 = m0 < m1
+        path_metrics = np.where(choose0, m0, m1)
+        tb_paths[k] = np.where(choose0, ps0, ps1)
+    decoded = np.empty(n_symbols, dtype=np.int8)
     best_state = 0
-    decoded_bits = []
-    
     for k in range(n_symbols - 1, -1, -1):
-        prev_state = tb_paths[k][best_state]
-        u = best_state >> 7
-        decoded_bits.append(u)
-        best_state = prev_state
-        
-    decoded_bits.reverse()
-    return np.array(decoded_bits, dtype=np.int8)
+        decoded[k] = best_state >> 7
+        best_state = int(tb_paths[k, best_state])
+    return decoded
 
 def verify_crc16(bits):
     """

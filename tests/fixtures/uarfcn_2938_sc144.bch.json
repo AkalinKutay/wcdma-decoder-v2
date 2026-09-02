@@ -1,0 +1,1562 @@
+{
+  "0": {
+    "hex": "D3665269478EE4800784478EE701005C3A0000000000000000000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "2": {
+    "hex": "D38E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "4": {
+    "hex": "D3A4B1F3033033959381981A0AD3C0CC0D254CA06606A28FB03303595E7806",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "6": {
+    "hex": "D3C4B260712A5B033039150D81981D0A3F40CC0EC504A06607728850330330",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "8": {
+    "hex": "D3E4B354EA06607B2B4D03303E147081981F4A1D40CC08552A1726506E0618",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "10": {
+    "hex": "D40E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "12": {
+    "hex": "D4302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "14": {
+    "hex": "D447F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "16": {
+    "hex": "D47004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "18": {
+    "hex": "D48E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "20": {
+    "hex": "D4A660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "22": {
+    "hex": "D4CE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "24": {
+    "hex": "D4F003A7C573EF7442FB55A05069120010CAFFFFFB9BB80445298E79260710",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "26": {
+    "hex": "D50E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "28": {
+    "hex": "D5302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "30": {
+    "hex": "D547F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "32": {
+    "hex": "D5645000781FFFE090878148605400C0006467958BF2081F800001FAD48706",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "34": {
+    "hex": "D58E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "36": {
+    "hex": "D5A4B410AD3C0CC0852420660529F228F166CB8CC08562ACD9719810ACD526",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "38": {
+    "hex": "D5C4B5CB8CC0E688A8521938860454290CA942622A1486452161150A432514",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "40": {
+    "hex": "D5E4B60C22A148658A001150A432110A08A8521938824454290CB940A22A05",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "42": {
+    "hex": "D60E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "44": {
+    "hex": "D6302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "46": {
+    "hex": "D647F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "48": {
+    "hex": "D67004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "50": {
+    "hex": "D68E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "52": {
+    "hex": "D6A660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "54": {
+    "hex": "D6CE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "56": {
+    "hex": "D6E451064040F128203C000208800C0445A2C801AC2506D680008146001E04",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "58": {
+    "hex": "D70E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "60": {
+    "hex": "D7302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "62": {
+    "hex": "D747F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "64": {
+    "hex": "D7665269478EE4800784478EE701005C3A0000000000000000000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "66": {
+    "hex": "D78E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "68": {
+    "hex": "D7A4B72195681C454290CBC41A22A14865F2151150A432D90808A852191C20",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "70": {
+    "hex": "D7C8B84D21150A432390A302529D82EC85E0929F228F166CD8D430562ACD26",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "72": {
+    "hex": "D7E6C05DC6A182B3566CD8D43302529C000000000000000000000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "74": {
+    "hex": "D80E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "76": {
+    "hex": "D8302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "78": {
+    "hex": "D847F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "80": {
+    "hex": "D87004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "82": {
+    "hex": "D88E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "84": {
+    "hex": "D8A660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "86": {
+    "hex": "D8CE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "88": {
+    "hex": "D8F003A7C573EF7442FB55A05069120010CAFFFFFB9BB80445298E79260710",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "90": {
+    "hex": "D90E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "92": {
+    "hex": "D9302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "94": {
+    "hex": "D947F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "96": {
+    "hex": "D9645000781FFFE090878148605400C0006467958BF2081F800001FAD48706",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "98": {
+    "hex": "D98E20AAC0A18065075844284468665A133302570DA9002122C71003C00000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "100": {
+    "hex": "D9A3F187870282703303F154A819810253E4518ECD971981208A852197A801",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "102": {
+    "hex": "D9C9F0C31150A432E50888A852190A85C454290C8642022A148648A035C800",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "104": {
+    "hex": "D9E4B0C7AC9C0124284A0DC0CC0C4566A06606329E30330321523819819429",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "106": {
+    "hex": "DA0E20AAC0A18065075844284468665A133302570DA9002122C71003C00000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "108": {
+    "hex": "DA302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "110": {
+    "hex": "DA47F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "112": {
+    "hex": "DA7004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "114": {
+    "hex": "DA8E20AAC0A18065075844284468665A133302570DA9002122C71003C00000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "116": {
+    "hex": "DAA660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "118": {
+    "hex": "DACE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "120": {
+    "hex": "DAE451064040F128203C000208800C0445A2C801AC2506D680008146001E04",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "122": {
+    "hex": "DB0E20AAC0A18065075844284468665A133302570DA9002122C71003C00000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "124": {
+    "hex": "DB302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "126": {
+    "hex": "DB47F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "128": {
+    "hex": "DB665269478EE4800784478EE701005C3A0000000000000000000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "130": {
+    "hex": "DB8E20AAC0A18065075844284468665A133302570DA9002122C71003C00000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "132": {
+    "hex": "DBA4B1F3033033959381981A0AD3C0CC0D254CA06606A28FB03303595E7806",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "134": {
+    "hex": "DBC4B260712A5B033039150D81981D0A3F40CC0EC504A06607728850330330",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "136": {
+    "hex": "DBE4B354EA06607B2B4D03303E147081981F4A1D40CC08552A1726506E0618",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "138": {
+    "hex": "DC0E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "140": {
+    "hex": "DC302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "142": {
+    "hex": "DC47F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "144": {
+    "hex": "DC7004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "146": {
+    "hex": "DC8E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "148": {
+    "hex": "DCA660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "150": {
+    "hex": "DCCE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "152": {
+    "hex": "DCF003A7C573EF7442FB55A05069120010CAFFFFFB9BB80445298E79260710",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "154": {
+    "hex": "DD0E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "156": {
+    "hex": "DD302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "158": {
+    "hex": "DD47F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "160": {
+    "hex": "DD645000781FFFE090878148605400C0006467958BF2081F800001FAD48706",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "162": {
+    "hex": "DD8E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "164": {
+    "hex": "DDA4B410AD3C0CC0852420660529F228F166CB8CC08562ACD9719810ACD526",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "166": {
+    "hex": "DDC4B5CB8CC0E688A8521938860454290CA942622A1486452161150A432514",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "168": {
+    "hex": "DDE4B60C22A148658A001150A432110A08A8521938824454290CB940A22A05",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "170": {
+    "hex": "DE0E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "172": {
+    "hex": "DE302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "174": {
+    "hex": "DE47F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "176": {
+    "hex": "DE7004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "178": {
+    "hex": "DE8E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "180": {
+    "hex": "DEA660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "182": {
+    "hex": "DECE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "184": {
+    "hex": "DEE451064040F128203C000208800C0445A2C801AC2506D680008146001E04",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "186": {
+    "hex": "DF0E20AAC0A18065075844284468665A133302570DA9002122C71003800000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "188": {
+    "hex": "DF302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "190": {
+    "hex": "DF47F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "192": {
+    "hex": "DF665269478EE4800784478EE701005C3A0000000000000000000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "194": {
+    "hex": "DF8E20AAC0A18065075844284468665A133302570DA9002122C71003400000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "196": {
+    "hex": "DFA4B72195681C454290CBC41A22A14865F2151150A432D90808A852191C20",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "198": {
+    "hex": "DFC8B84D21150A432390A302529D82EC85E0929F228F166CD8D430562ACD26",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "200": {
+    "hex": "DFE6C05DC6A182B3566CD8D43302529C000000000000000000000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "202": {
+    "hex": "E00E20AAC0A18065075844284468665A133302570DA9002122C71003400000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "204": {
+    "hex": "E0302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "206": {
+    "hex": "E047F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "208": {
+    "hex": "E07004B58AE7DEE885F6AB40A0D224002194F73FC2002084A5DC00C21C4209",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "210": {
+    "hex": "E08E20AAC0A18065075844284468665A133302570DA9002122C71003400000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "212": {
+    "hex": "E0A660AE861204C00100C0110CC003C4300B1D9900218449B5A40000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "214": {
+    "hex": "E0CE1BB18C5087219A1C8ECD472A740680680682D857E40215354000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "216": {
+    "hex": "E0F003A7C573EF7442FB55A05069120010CAFFFFFB9BB80445298E79260710",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "218": {
+    "hex": "E10E20AAC0A18065075844284468665A133302570DA9002122C71003400000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "220": {
+    "hex": "E1302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "222": {
+    "hex": "E147F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "224": {
+    "hex": "E1645000781FFFE090878148605400C0006467958BF2081F800001FAD48706",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "226": {
+    "hex": "E18E20AAC0A18065075844284468665A133302570DA9002122C71003400000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "228": {
+    "hex": "E1A3F187870282703303F154A819810253E4518ECD971981208A852197A801",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "230": {
+    "hex": "E1C9F0C31150A432E50888A852190A85C454290C8642022A148648A035C800",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "232": {
+    "hex": "E1E4B0C7AC9C0124284A0DC0CC0C4566A06606329E30330321523819819429",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "234": {
+    "hex": "E20E20AAC0A18065075844284468665A133302570DA9002122C71003400000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "236": {
+    "hex": "E2302185E67A99096809100010C3020AE7B4D866A042613D4DF11D660D0530",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  },
+  "238": {
+    "hex": "E247F0AF2D55C5801860E1D2800C0A34E9600601C374B00230000000000000",
+    "config": {
+      "conj_mode": true,
+      "deint2": "deinterleave_2nd_a",
+      "reverse_frames": false,
+      "swap_iq": false,
+      "sign_i": 1.0,
+      "sign_q": 1.0,
+      "crc_init": 0,
+      "crc_reverse": true
+    }
+  }
+}
