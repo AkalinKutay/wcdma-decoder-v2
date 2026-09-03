@@ -45,14 +45,12 @@ cd /home/redeye/icc/wcdma-decoder-v2
 ./run-scan.sh --band 1                        # TR B1 listesi
 ./run-scan.sh --iq --band 8 --uarfcn 2938     # damgalı IQ arşiv
 ./run-scan.sh --detail --band 8 --uarfcn 2938 # renkli tablolar
-./run-scan.sh --band-scan 8                   # tüm Bant 8 süpür + decode
 ```
 
 | Bayrak | Anlam |
 |--------|--------|
 | `--band N` | 1 2 4 5 6 8 19. Tek başına 1 veya 8 → TR listesi. Diğer bant `--uarfcn` ister. |
 | `--uarfcn` | DL UARFCN listesi |
-| `--band-scan N` | Tüm bandı süpür, hücreleri decode et, sonra aynı IQ’dan intra-band SIB komşuları. Süre bütçesi yok. TR liste **kullanmaz**. |
 | `--iq` | `captures/<stamp>_uarfcn_<N>.cfile` sakla. Yoksa `captures/uarfcn_<N>.cfile` üzerine yaz. |
 | `--detail` | NAS / reselection / kanal / PHY tablosu. GSM tablosunda **bant kolonu yok**. |
 | `-g` / `--gain` | default 40 |
@@ -107,49 +105,20 @@ BCH complete = UPER decode başarısı, segment varlığı değil.
 
 ---
 
-## `--band-scan` (lab B8 canlı OK)
+## Band tarama kaldırıldı (2026-09-03)
 
-Amaç: kullanıcı bandı seçer, **bilinmeyen UARFCN** dahil tek komutta süpürülür. Önce hücre, sonra aynı IQ’dan SIB’deki **intra-band** WCDMA komşuları. Süre bütçesi yok (25 s’de kalan kalır yok). TR liste kullanmaz. Hop başına `--duration` (3 s) kısalmaz.
+`--band-scan`, `wcdma_band_scan.py`, `capture_wideband`, `survey_hops` yok. Kullanıcı “band tarama” derse **yapma**; `--band 8` TR listesidir (2997 3018 2938 2963), tüm raster süpürme değil.
 
-Dosyalar: `wcdma_band_scan.py`, `wcdma_bands.survey_hops`, `uhd_capture.capture_wideband`, `scan_3g.run_band_scan`.
+Capture tek UARFCN: **15.36 Msps → 7.68**. 61.44 Msps yok.
 
-Akış:
-
-1. B210 analog **max 56 MHz**. **61.44 Msps kullanma** (UHD uyarısı: rate > analog filter). Rate **15.36 veya 30.72**. Analog BW = rate.
-2. Bant 8 (~30.2 MHz) **1 hop** 30.72 Msps LO 942.5 MHz. Bant 1 (~55 MHz) **2 hop** 30.72, 4 MHz overlap.
-3. 3 s wideband IQ (RAM; `--iq` yoksa 1 GB cfile yazma).
-4. PSD 200 kHz raster, ±1.8 MHz **25. yüzdelik** (mean değil — GSM 200 kHz spike WCDMA platosunu ezmesin), 20. yüzdelik gürültü + 4 dB, min ayrım 20 UARFCN (~4 MHz). Log’da PSD top da 5 MHz aralıklı.
-5. Eşik boşsa en güçlü 5 MHz aralıklı tepeler yine P-SCH’e gider.
-6. Bütün PSD adayları 0.25 s DDC + P-SCH. Ec/No ≥ −22, veya Ec/No ≥ −25 **ve** |CFO| < 2 kHz (lab −g 0’da 2963 SC 144 −23.6 / 318 Hz).
-7. Decode sırası Ec/No. Süre bütçesi yok; hop süresi `--duration` (3 s), kısaltma.
-8. Decode olan hücrenin SIB11/12 **intra-band** DL UARFCN’leri aynı IQ’dan probe+decode. LTE/GSM ve diğer bant (10813 @ B8) uydurulmaz; stderr `# sib-neighbors not B8`.
-
-DDC karışım: `exp(-j2π(target-lo)t)` — 2997 LO’nun 3.1 MHz altında, lab’da decode OK.
-
-### Son canlı koşu (2026-09-03 10:40, lab, serial 2505103 RX2)
-
-Kullanıcı 10:31 `-g 0`: 3018 PSC 5 CID 139474660, SIB WCDMA 2997/3018/10813 — eski kod 2997’ye gitmedi (bütçe + SIB takibi yok).
+### Son canlı (TR liste / tek UARFCN, lab serial 2505103 RX2)
 
 ```
-./run-scan.sh --band-scan 8 -g 0     # 10:39
-# air=3.0s/hop   (budget yok)
-PSD top 3018 +1.6dB … 2997 +0.5dB
-probe 3018 PSC 220 Ec/No -19.1  → CID 139479313  SIB sadece intra 3018
-probe 2997 PSC 417 Ec/No -25.3 skip   # SIB 2997 listelemedi, P-SCH çöp
-cells=1  28s
-
-./run-scan.sh --band-scan 8          # 10:40 default g=40
-PSD top 3056 +8.8dB  3017 +8.3dB  3076 +6.7dB  2997 +6.0dB
-probe 2997 PSC 220 Ec/No -18.1  → CID 139477641  SIB sadece intra 2997
-3017 (3018−1) P-SCH çöp; SIB 3018 yazmadığı için uydurulmadı
-cells=1  24s
+./run-scan.sh --band 8 --uarfcn 2997     # g=40, PSC 5, CID 139472946, RNC 2128, LTE 100 550 1651 2850 6400
+./run-scan.sh --band 8 -g 0              # 10:31: 3018 PSC 5 CID 139474660, SIB WCDMA 2997/3018/10813
 ```
 
-SIB inter-freq (2997↔3018) bugün bu iki CID’de yoktu; 10:31’deki 139474660 listesinde vardı — kod artık aynı IQ’dan o DL’ye gider. 10813 B1, B8 IQ’dan DDC yok.
-
-Lab içi: 2938/2963 genelde Ec/No < −25 veya CFO büyük. Dışarıda 2938/2963/2997/3018 beklenir.
-
-Sonraki canlı: `--band-scan 1` (B1 2511050) veya dışarı B8.
+Sonraki canlı: `./run-scan.sh --band 8` veya `--band 1` (B1 seri 2511050).
 
 ---
 
@@ -183,12 +152,11 @@ python3 tests/test_combined_payloads.py
 
 | Dosya | Rol |
 |-------|-----|
-| `scan_3g.py` | CLI, print, `--detail`, `--band-scan` |
+| `scan_3g.py` | CLI, print, `--detail` |
 | `run-scan.sh` | `UHD_IMAGES_DIR` + `scan_3g.py` |
 | `setup.sh` | apt uhd/numpy/scipy + pip asn1tools |
-| `uhd_capture.py` | tek UARFCN 15.36→7.68; `capture_wideband` |
-| `wcdma_bands.py` | UARFCN, hop planı |
-| `wcdma_band_scan.py` | PSD aday, DDC 7.68 |
+| `uhd_capture.py` | tek UARFCN 15.36→7.68 |
+| `wcdma_bands.py` | UARFCN / 3GPP bant tablosu |
 | `wcdma_sync.py` | P-SCH/S-SCH/CPICH |
 | `wcdma_si_assembler.py` | SIB birleştirme + TT combined payload |
 | `wcdma_scan_report.py` | UPER extract + `extract_sib_detail` |
@@ -201,7 +169,6 @@ python3 tests/test_combined_payloads.py
 - `SystemInformation2-BCH` okunmuyor.
 - TT 2938/2963 SIB19 (LTE listesi) kısa first+last bazen UPER fail.
 - Aynı taşıyıcı 2. PSC: `--detail` CPICH extra; BCH en güçlü PSC.
-- Band 4 extra 1700 MHz `--band-scan` kapsamı **ana DL** (2112–2152). Extra ayrı LO.
 - Token chat’e yapıştırma. PAT sohbette göründüyse revoke.
 
 ---
@@ -209,10 +176,9 @@ python3 tests/test_combined_payloads.py
 ## Yeni oturum checklist
 
 1. Bu GROK.md + `git status` / `git log -3`
-2. Canlı: `./run-scan.sh --band-scan 8` lab’da hücre+SIB komşu; mümkünse `--band-scan 1`
-3. Süre bütçesi yok. SIB intra-band komşu aynı IQ; diğer bant uydurma. `# probe` / `# sib-neighbors`
-4. Kullanıcı “band tarama” derse TR liste değil `--band-scan`
-5. Context 500k → GROK.md güncelle, commit, aşağıdaki prompt ile new session
+2. Canlı: `./run-scan.sh --band 8` (TR liste) veya `--band 1`
+3. `--band-scan` yok; kullanıcı “band tarama” derse tüm raster süpürme ekleme
+4. Context 500k → GROK.md güncelle, commit, aşağıdaki prompt ile new session
 
 Kullanıcı dili Türkçe; stdout kısa tarama İngilizce (UARFCN/PSC), `--detail` Türkçe etiket.
 
@@ -236,9 +202,9 @@ Do not modify icc/wcdma-decoder or icc/scripts unless I ask to port a specific f
 Passive RX WCDMA FDD BCH/SIB decoder, USRP B210, first free radio, no serial lock.
 CLI: ./run-scan.sh  (scan_3g.py). Default gain 40, duration 3s. Do not shorten capture; do not disable SIB11 beam-search; do not invent SIB neighbors.
 
-Immediate work: live-verify ./run-scan.sh --band-scan 1 if B210 serial 2511050 is plugged; else outdoor Band 8 for 2938/2963/3018. Band-scan has no 20s budget: decode every real cell, then intra-band SIB WCDMA neighbors from the same IQ (do not invent LTE/GSM or other-band UARFCNs). Lab 2026-09-03 10:40 g40: 2997 PSC 220 CID 139477641, SIB intra-only. 10:31 -g 0 had 3018 listing 2997/10813 — 10813 is B1, skip.
+Immediate work: live-verify ./run-scan.sh --band 8 (TR list 2997 3018 2938 2963). --band-scan is gone; do not re-add a whole-band PSD sweep. Lab 2026-09-03: 2997 PSC 5/220 Turkcell RNC 2128; 3018 at -g 0 PSC 5 CID 139474660 with SIB WCDMA 2997/3018/10813.
 
-Rules: terminal-first; no overly orchestrated scripts; --iq keeps timestamped IQ else overwrite uarfcn_N.cfile; --detail colored tables (no GSM band column); never 61.44 Msps (AD9361 analog max 56 MHz, use 15.36/30.72).
+Rules: terminal-first; no overly orchestrated scripts; --iq keeps timestamped IQ else overwrite uarfcn_N.cfile; --detail colored tables (no GSM band column); capture 15.36→7.68 Msps (never 61.44).
 
 When context approaches 500k: update GROK.md (status + last live result), commit, give me this same new-session prompt.
 ```

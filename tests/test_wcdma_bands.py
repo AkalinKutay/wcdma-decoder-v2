@@ -10,7 +10,6 @@ from wcdma_bands import (
     band_of_uarfcn,
     mhz_to_uarfcn,
     resolve_scan_list,
-    survey_hops,
     uarfcn_to_dl_mhz,
     ul_dl_pair_ok,
 )
@@ -48,104 +47,12 @@ def test_duplex():
     assert ul_dl_pair_ok(2712, 2937)
 
 
-def test_band_range_and_hops():
+def test_band_range():
     lo, hi = band_dl_range_mhz(8)
     assert abs(lo - 927.4) < 1e-6
     assert abs(hi - 957.6) < 1e-6
     assert mhz_to_uarfcn(939.4, 8) == 2997
     assert mhz_to_uarfcn(2162.6, 1) == 10813
-    hops8 = survey_hops(8)
-    assert len(hops8) == 1
-    assert hops8[0]["rate"] == 30.72e6
-    assert hops8[0]["analog_bw"] <= hops8[0]["rate"]
-    hops1 = survey_hops(1)
-    assert len(hops1) == 2
-    assert all(h["rate"] <= 30.72e6 for h in hops1)
-    assert all(h["analog_bw"] <= 56e6 for h in hops1)
-    b1_lo, b1_hi = band_dl_range_mhz(1)
-    span1 = hops1[-1]["f_hi_hz"] - hops1[0]["f_lo_hz"]
-    assert span1 >= (b1_hi - b1_lo) * 1e6 - 1e3
-
-
-def _band8_iq_with_wcdma(rng, n, fs, lo, uarfcn_hz, amp=4.0):
-    import numpy as np
-    from scipy.signal import firwin, lfilter
-
-    iq = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64) * 0.05
-    t = np.arange(n) / fs
-    bump = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
-    taps = firwin(129, 1.8e6, fs=fs, pass_zero="lowpass").astype(np.float32)
-    bump = lfilter(taps, 1.0, bump).astype(np.complex64)
-    return iq + amp * bump * np.exp(1j * 2 * np.pi * (uarfcn_hz - lo) * t)
-
-
-def test_psd_finds_unknown_uarfcn():
-    import numpy as np
-    from wcdma_band_scan import find_candidate_uarfcns, format_psd_top
-
-    fs = 30.72e6
-    lo = 942.5e6
-    n = int(0.08 * fs)
-    rng = np.random.default_rng(0)
-    iq = _band8_iq_with_wcdma(rng, n, fs, lo, 939.4e6)
-    found = find_candidate_uarfcns(iq, fs, lo, 8, 927.4e6, 957.6e6, margin_db=4.0)
-    assert 2997 in found or any(abs(u - 2997) <= 5 for u in found)
-    top = format_psd_top(iq, fs, lo, 8, 927.4e6, 957.6e6)
-    assert "2997" in top
-    # 5 MHz spacing in the log, not six adjacent 200 kHz bins.
-    assert "2998" not in top and "2996" not in top
-
-
-def test_psd_ignores_gsm_tone():
-    import numpy as np
-    from wcdma_band_scan import find_candidate_uarfcns, format_psd_top
-
-    fs = 30.72e6
-    lo = 942.5e6
-    n = int(0.08 * fs)
-    rng = np.random.default_rng(1)
-    iq = _band8_iq_with_wcdma(rng, n, fs, lo, 939.4e6, amp=3.0)
-    t = np.arange(n) / fs
-    # Strong GSM-like tone at 954.2 MHz (UARFCN 3071). Mean-window scoring
-    # used to list 3071 first and hide 2997.
-    iq = iq + (0.8 * np.exp(1j * 2 * np.pi * (954.2e6 - lo) * t)).astype(np.complex64)
-    found = find_candidate_uarfcns(iq, fs, lo, 8, 927.4e6, 957.6e6, margin_db=4.0)
-    assert 2997 in found or any(abs(u - 2997) <= 5 for u in found)
-    top = format_psd_top(iq, fs, lo, 8, 927.4e6, 957.6e6)
-    assert "2997" in top
-    first = int(top.split()[2])
-    assert abs(first - 2997) <= 5, top
-
-
-def test_intra_band_sib_neighbors():
-    from wcdma_band_scan import hop_covers_uarfcn, intra_band_neighbor_uarfcns
-    from wcdma_bands import survey_hops
-
-    cell = {
-        "status": "ok",
-        "wcdma_neighbors": [
-            {"uarfcn": 3018, "psc": 5},
-            {"uarfcn": 2997, "psc": 270},
-            {"uarfcn": 2997, "psc": 61},
-            {"uarfcn": 10813, "psc": 483},
-        ],
-    }
-    assert intra_band_neighbor_uarfcns(cell, 8) == [3018, 2997]
-    assert 10813 not in intra_band_neighbor_uarfcns(cell, 8)
-    hops = survey_hops(8)
-    assert hop_covers_uarfcn(2997, 8, hops[0])
-    assert hop_covers_uarfcn(3018, 8, hops[0])
-    assert not hop_covers_uarfcn(10813, 8, hops[0])
-
-
-def test_keep_band_scan_probe():
-    from scan_3g import keep_band_scan_probe
-
-    assert keep_band_scan_probe(-18.4, 435.0)
-    assert keep_band_scan_probe(-23.6, 318.0)  # lab 2963 SC 144 at -g 0
-    assert not keep_band_scan_probe(-24.4, -10406.0)
-    assert not keep_band_scan_probe(-25.4, 19605.0)
-    assert not keep_band_scan_probe(-25.4, None)
 
 
 def test_one_bit_uarfcn_slip():
@@ -167,10 +74,6 @@ if __name__ == "__main__":
     test_3gpp_dl()
     test_cli_resolve()
     test_duplex()
-    test_band_range_and_hops()
-    test_psd_finds_unknown_uarfcn()
-    test_psd_ignores_gsm_tone()
-    test_intra_band_sib_neighbors()
-    test_keep_band_scan_probe()
+    test_band_range()
     test_one_bit_uarfcn_slip()
     print("  -> wcdma_bands tests PASSED")
