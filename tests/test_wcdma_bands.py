@@ -117,6 +117,37 @@ def test_psd_ignores_gsm_tone():
     assert abs(first - 2997) <= 5, top
 
 
+def test_intra_band_sib_neighbors():
+    from wcdma_band_scan import hop_covers_uarfcn, intra_band_neighbor_uarfcns
+    from wcdma_bands import survey_hops
+
+    cell = {
+        "status": "ok",
+        "wcdma_neighbors": [
+            {"uarfcn": 3018, "psc": 5},
+            {"uarfcn": 2997, "psc": 270},
+            {"uarfcn": 2997, "psc": 61},
+            {"uarfcn": 10813, "psc": 483},
+        ],
+    }
+    assert intra_band_neighbor_uarfcns(cell, 8) == [3018, 2997]
+    assert 10813 not in intra_band_neighbor_uarfcns(cell, 8)
+    hops = survey_hops(8)
+    assert hop_covers_uarfcn(2997, 8, hops[0])
+    assert hop_covers_uarfcn(3018, 8, hops[0])
+    assert not hop_covers_uarfcn(10813, 8, hops[0])
+
+
+def test_keep_band_scan_probe():
+    from scan_3g import keep_band_scan_probe
+
+    assert keep_band_scan_probe(-18.4, 435.0)
+    assert keep_band_scan_probe(-23.6, 318.0)  # lab 2963 SC 144 at -g 0
+    assert not keep_band_scan_probe(-24.4, -10406.0)
+    assert not keep_band_scan_probe(-25.4, 19605.0)
+    assert not keep_band_scan_probe(-25.4, None)
+
+
 def test_one_bit_uarfcn_slip():
     from wcdma_si_assembler import _drop_one_bit_uarfcn_slips
 
@@ -139,5 +170,7 @@ if __name__ == "__main__":
     test_band_range_and_hops()
     test_psd_finds_unknown_uarfcn()
     test_psd_ignores_gsm_tone()
+    test_intra_band_sib_neighbors()
+    test_keep_band_scan_probe()
     test_one_bit_uarfcn_slip()
     print("  -> wcdma_bands tests PASSED")

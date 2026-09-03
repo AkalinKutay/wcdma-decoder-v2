@@ -65,7 +65,7 @@ UARFCN 10813  2162.6 MHz  PSC 483  Ec/No  -4.3  RSCP  -63.4  B1  Turkcell
 | `--duration` | 3 | Capture seconds |
 | `--iq` | off | Keep timestamped IQ (see below) |
 | `--detail` | off | Print NAS, reselection, channels, PHY sync |
-| `--band-scan N` | | Sweep whole band, detect unknown UARFCNs, decode (~15–20 s) |
+| `--band-scan N` | | Sweep whole band, decode cells, then intra-band SIB neighbors |
 | `--serial` | first free | UHD serial |
 | `--skip-sib` | off | Cell search only |
 | `--check` | | Deps + radio, then exit |
@@ -153,7 +153,7 @@ ve ASN.1 SIB okur. Kullanıcı trafiği / IMSI yok, verici yok.
 ./run-scan.sh --band-scan 8
 ```
 
-`--band-scan 8` TR listesine bakmaz: bandın tamamını bir (veya iki) LO hop ile süpürür, enerji adaylarını decode eder.
+`--band-scan 8` TR listesine bakmaz: bandın tamamını bir (veya iki) LO hop ile süpürür, hücreleri decode eder, sonra aynı IQ’dan SIB’deki intra-band WCDMA komşularına gider. Süre bütçesi yok; hop başına `--duration` (3 s) kısalmaz.
 
 `--iq` yoksa `captures/uarfcn_<N>.cfile` üzerine yazar. `--iq` varsa damgalı
 kopya kalır (~180 MB / UARFCN). Sonuçlar her zaman `results/` altında damgalı.

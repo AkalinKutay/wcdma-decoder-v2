@@ -9,7 +9,7 @@ import math
 
 import numpy as np
 
-from wcdma_bands import uarfcn_to_dl_mhz, uarfcns_primary
+from wcdma_bands import uarfcn_in_band, uarfcn_to_dl_mhz, uarfcns_primary
 
 DECODER_FS = 7.68e6
 PROBE_SECONDS = 0.25
@@ -106,6 +106,29 @@ def format_psd_top(iq, fs, lo_hz, band, f_lo_hz, f_hi_hz, n: int = 6, min_sep: i
     for u in _spaced_top(db, min_sep, n):
         bits.append(f"{u} {db[u] - noise_db:+.1f}dB")
     return "PSD top " + "  ".join(bits)
+
+
+def hop_covers_uarfcn(uarfcn: int, band: int, hop: dict) -> bool:
+    if not uarfcn_in_band(int(uarfcn), band):
+        return False
+    fc = uarfcn_to_dl_mhz(int(uarfcn), band) * 1e6
+    return hop["f_lo_hz"] - 1e3 <= fc <= hop["f_hi_hz"] + 1e3
+
+
+def intra_band_neighbor_uarfcns(cell: dict, band: int) -> list[int]:
+    """Unique SIB11/12 DL UARFCNs in this FDD band. Not LTE/GSM, not invented."""
+    out: list[int] = []
+    seen: set[int] = set()
+    for n in cell.get("wcdma_neighbors") or []:
+        try:
+            u = int(n.get("uarfcn"))
+        except (TypeError, ValueError):
+            continue
+        if u in seen or not uarfcn_in_band(u, band):
+            continue
+        seen.add(u)
+        out.append(u)
+    return out
 
 
 def ddc_to_decoder(iq, fs: float, lo_hz: float, target_hz: float, seconds=None):

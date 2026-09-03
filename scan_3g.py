@@ -54,6 +54,10 @@ known Turkey UARFCNs (--band 1 or 8 without --uarfcn):
   TURK TELEKOM  10738 10763 10788 2938 2963
 """
 ECNO_MIN_DB = -22.0
+# Band-scan: keep a slightly weaker P-SCH if CFO looks like a real lock
+# (lab -g 0: TT 2963 SC 144 Ec/No -23.6, CFO 318 Hz).
+PROBE_WEAK_ECNO_DB = ECNO_MIN_DB - 3.0
+PROBE_MAX_CFO_HZ = 2000.0
 OPERATORS = {
     ("286", "01"): "Turkcell",
     ("286", "1"): "Turkcell",
@@ -103,6 +107,14 @@ def infer_serving_uarfcn(tuned: int, serving_psc: int, inter_neighbors: list[dic
             if cand != co:
                 return cand
     return None
+
+
+def keep_band_scan_probe(ecno: float, cfo_hz) -> bool:
+    if ecno >= ECNO_MIN_DB:
+        return True
+    if cfo_hz is None:
+        return False
+    return ecno >= PROBE_WEAK_ECNO_DB and abs(float(cfo_hz)) < PROBE_MAX_CFO_HZ
 
 
 def group_wcdma(neighbors: list[dict]) -> dict[int, list[int]]:
@@ -909,9 +921,8 @@ def run_band_scan(
     cells: list[dict],
     logs: list[str],
     persist,
-    budget_s: float = 20.0,
 ) -> None:
-    """One command: sweep the whole FDD band, decode unknown UARFCNs from the same IQ."""
+    """Sweep the FDD band from one IQ: every real cell, then its intra-band SIB neighbors."""
     import numpy as np
     import uhd_capture
     import wcdma_cellsearch
@@ -920,24 +931,152 @@ def run_band_scan(
         ddc_to_decoder,
         find_candidate_uarfcns,
         format_psd_top,
+        hop_covers_uarfcn,
+        intra_band_neighbor_uarfcns,
     )
-    from wcdma_bands import band_dl_range_mhz, survey_hops, uarfcn_to_dl_mhz
+    from wcdma_bands import band_dl_range_mhz, survey_hops, uarfcn_in_band, uarfcn_to_dl_mhz
 
     t0 = time.time()
     f_lo, f_hi = band_dl_range_mhz(band)
     hops = survey_hops(band)
     print(
         f"# band-scan B{band}  {f_lo:.1f}-{f_hi:.1f} MHz  hops={len(hops)}  "
-        f"air={duration:.1f}s  budget={budget_s:.0f}s",
+        f"air={duration:.1f}s/hop",
         file=sys.stderr,
         flush=True,
     )
-    seen: set[int] = set()
+    decoded: set[int] = set()
+    probed: set[int] = set()
+    pending_sib: set[int] = set()
+
+    def _write_probe_meta(uarfcn: int, target_hz: float) -> Path:
+        probe_path = captures / f"uarfcn_{uarfcn}.cfile"
+        Path(str(probe_path) + ".json").write_text(
+            json.dumps(
+                {
+                    "uarfcn": uarfcn,
+                    "frequency_mhz": round(target_hz / 1e6, 1),
+                    "sample_rate_hz": 7.68e6,
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        return probe_path
+
+    def _note_sib_neighbors(cell: dict) -> None:
+        if cell.get("status") not in ("ok", "cell"):
+            return
+        other = []
+        for n in cell.get("wcdma_neighbors") or []:
+            try:
+                u = int(n.get("uarfcn"))
+            except (TypeError, ValueError):
+                continue
+            if not uarfcn_in_band(u, band) and u not in other:
+                other.append(u)
+        for u in intra_band_neighbor_uarfcns(cell, band):
+            if u not in decoded:
+                pending_sib.add(u)
+        if other:
+            print(
+                f"# sib-neighbors not B{band} {other}  (other band, this IQ)",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    def probe_one(wide, hop, uarfcn: int) -> float | None:
+        if uarfcn in decoded or uarfcn in probed:
+            return None
+        probed.add(uarfcn)
+        target_hz = uarfcn_to_dl_mhz(uarfcn, band) * 1e6
+        probe = ddc_to_decoder(
+            wide, hop["rate"], hop["center_hz"], target_hz, seconds=PROBE_SECONDS
+        )
+        probe_path = _write_probe_meta(uarfcn, target_hz)
+        try:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                search = wcdma_cellsearch.search_capture(
+                    str(probe_path), iq_data=probe, max_cells=1
+                )
+            logs.append(buf.getvalue())
+        except Exception as exc:
+            logs.append(str(exc))
+            print(f"# probe {uarfcn}  error {exc}", file=sys.stderr, flush=True)
+            return None
+        found = (search or {}).get("cells") or []
+        if not found:
+            print(f"# probe {uarfcn}  no-cell", file=sys.stderr, flush=True)
+            return None
+        top = found[0]
+        ecno = float(top["cpich_ecno_db"])
+        psc = int(top["scrambling_code"])
+        cfo = top.get("frequency_correction_hz")
+        if not keep_band_scan_probe(ecno, cfo):
+            print(
+                f"# probe {uarfcn}  PSC {psc}  Ec/No {ecno:.1f}  skip",
+                file=sys.stderr,
+                flush=True,
+            )
+            return None
+        print(
+            f"# probe {uarfcn}  PSC {psc}  Ec/No {ecno:.1f}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return ecno
+
+    def decode_one(wide, hop, uarfcn: int) -> None:
+        if uarfcn in decoded:
+            return
+        decoded.add(uarfcn)
+        target_hz = uarfcn_to_dl_mhz(uarfcn, band) * 1e6
+        full = ddc_to_decoder(wide, hop["rate"], hop["center_hz"], target_hz)
+        cell, log = scan_uarfcn(
+            uarfcn,
+            duration,
+            skip_sib,
+            captures,
+            db,
+            serial,
+            usrp=usrp,
+            antenna=antenna,
+            gain_db=gain_db,
+            band=band,
+            stamp=stamp if save_iq else "",
+            detail=detail,
+            iq_data=full,
+            save_iq=save_iq,
+        )
+        cells.append(cell)
+        logs.append(log)
+        print_cell(cell, detail=detail)
+        persist("partial")
+        _note_sib_neighbors(cell)
+
+    def probe_and_decode(wide, hop, uarfcns: list[int], why: str) -> None:
+        queue = []
+        for u in uarfcns:
+            if u in decoded or u in probed:
+                continue
+            if not hop_covers_uarfcn(u, band, hop):
+                continue
+            queue.append(u)
+        if not queue:
+            return
+        if why:
+            print(f"# {why} {queue}", file=sys.stderr, flush=True)
+        hits: list[tuple[int, float]] = []
+        for u in queue:
+            ecno = probe_one(wide, hop, u)
+            if ecno is not None:
+                hits.append((u, ecno))
+        hits.sort(key=lambda row: -row[1])
+        for u, _ecno in hits:
+            decode_one(wide, hop, u)
+
     for hop_i, hop in enumerate(hops):
-        if time.time() - t0 > budget_s - 2.0:
-            print("# band-scan time budget, remaining hops skipped", file=sys.stderr)
-            break
-        hop_dur = float(duration) if len(hops) == 1 else max(1.6, float(duration) / len(hops))
         wide_out = None
         if save_iq:
             prefix = stamp or "band"
@@ -948,7 +1087,7 @@ def run_band_scan(
                 usrp,
                 hop["center_hz"],
                 hop["rate"],
-                hop_dur,
+                float(duration),
                 hop["analog_bw"],
                 gain_db,
                 antenna=antenna or "RX2",
@@ -979,92 +1118,31 @@ def run_band_scan(
             file=sys.stderr,
             flush=True,
         )
-        # Probe every candidate first. One BCH/SIB decode used to eat the
-        # 20 s budget and skip remaining P-SCH.
-        hits: list[tuple[int, float]] = []
-        for uarfcn in cands:
-            if uarfcn in seen:
-                continue
-            if time.time() - t0 > budget_s - 1.0:
-                print("# band-scan time budget, remaining probes skipped", file=sys.stderr)
+        prior = [
+            u
+            for u in sorted(pending_sib)
+            if u not in decoded
+            and u not in cands
+            and hop_covers_uarfcn(u, band, hop)
+        ]
+        if prior:
+            print(f"# sib-neighbors from prior hop {prior}", file=sys.stderr, flush=True)
+        probe_and_decode(wide, hop, list(cands) + prior, "")
+        # Same hop: SIB11/12 DLs that PSD missed (or missed by 1 UARFCN).
+        while True:
+            more = [
+                u
+                for u in sorted(pending_sib)
+                if u not in decoded
+                and u not in probed
+                and hop_covers_uarfcn(u, band, hop)
+            ]
+            if not more:
                 break
-            target_hz = uarfcn_to_dl_mhz(uarfcn, band) * 1e6
-            probe = ddc_to_decoder(
-                wide, hop["rate"], hop["center_hz"], target_hz, seconds=PROBE_SECONDS
-            )
-            probe_path = captures / f"uarfcn_{uarfcn}.cfile"
-            Path(str(probe_path) + ".json").write_text(
-                json.dumps(
-                    {
-                        "uarfcn": uarfcn,
-                        "frequency_mhz": round(target_hz / 1e6, 1),
-                        "sample_rate_hz": 7.68e6,
-                    },
-                    indent=2,
-                )
-                + "\n"
-            )
-            try:
-                buf = io.StringIO()
-                with contextlib.redirect_stdout(buf):
-                    search = wcdma_cellsearch.search_capture(
-                        str(probe_path), iq_data=probe, max_cells=1
-                    )
-                logs.append(buf.getvalue())
-            except Exception as exc:
-                logs.append(str(exc))
-                print(f"# probe {uarfcn}  error {exc}", file=sys.stderr, flush=True)
-                continue
-            found = (search or {}).get("cells") or []
-            if not found:
-                print(f"# probe {uarfcn}  no-cell", file=sys.stderr, flush=True)
-                continue
-            top = found[0]
-            ecno = float(top["cpich_ecno_db"])
-            psc = int(top["scrambling_code"])
-            if ecno < ECNO_MIN_DB:
-                print(
-                    f"# probe {uarfcn}  PSC {psc}  Ec/No {ecno:.1f}  skip",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                continue
-            print(
-                f"# probe {uarfcn}  PSC {psc}  Ec/No {ecno:.1f}",
-                file=sys.stderr,
-                flush=True,
-            )
-            hits.append((uarfcn, ecno))
-        hits.sort(key=lambda row: -row[1])
-        for uarfcn, _ecno in hits:
-            if uarfcn in seen:
-                continue
-            if time.time() - t0 > budget_s - 1.0:
-                print("# band-scan time budget, remaining decode skipped", file=sys.stderr)
+            n_before = len(decoded)
+            probe_and_decode(wide, hop, more, "sib-neighbors")
+            if len(decoded) == n_before:
                 break
-            seen.add(uarfcn)
-            target_hz = uarfcn_to_dl_mhz(uarfcn, band) * 1e6
-            full = ddc_to_decoder(wide, hop["rate"], hop["center_hz"], target_hz)
-            cell, log = scan_uarfcn(
-                uarfcn,
-                duration,
-                skip_sib,
-                captures,
-                db,
-                serial,
-                usrp=usrp,
-                antenna=antenna,
-                gain_db=gain_db,
-                band=band,
-                stamp=stamp if save_iq else "",
-                detail=detail,
-                iq_data=full,
-                save_iq=save_iq,
-            )
-            cells.append(cell)
-            logs.append(log)
-            print_cell(cell, detail=detail)
-            persist("partial")
     elapsed = time.time() - t0
     print(
         f"# band-scan B{band} done  cells={sum(1 for c in cells if c.get('status') in ('ok', 'cell'))}  "
@@ -1101,7 +1179,7 @@ def main(argv: list[str] | None = None) -> int:
         nargs="+",
         default=None,
         metavar="N",
-        help="Sweep whole FDD band(s), find unknown UARFCNs, decode (~15-20s/band)",
+        help="Sweep whole FDD band(s); decode cells then intra-band SIB neighbors",
     )
     parser.add_argument("--duration", type=float, default=3.0, help="IQ capture seconds (default 3)")
     parser.add_argument(
@@ -1227,7 +1305,6 @@ def main(argv: list[str] | None = None) -> int:
                     cells,
                     logs,
                     persist,
-                    budget_s=20.0,
                 )
             persist("complete")
         for i, uarfcn in enumerate(targets):
