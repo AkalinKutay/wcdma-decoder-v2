@@ -95,6 +95,11 @@ BANDS: dict[int, dict] = {
 }
 
 SUPPORTED_BANDS = tuple(BANDS)
+# AD9361 analog filter tops out at 56 MHz. 61.44 Msps trips
+# "sample rate > analog frontend filter bandwidth". Stay at 30.72.
+B210_USABLE_HZ = 30.72e6
+B210_RATES = (15.36e6, 30.72e6)
+B210_ANALOG_MAX_HZ = 56e6
 TR_UARFCNS = {
     1: (10563, 10588, 10613, 10638, 10813, 10838, 10663, 10688, 10713, 10738, 10763, 10788),
     8: (2997, 3018, 2938, 2963),
@@ -179,6 +184,61 @@ def ul_dl_pair_ok(ul, dl) -> bool:
         if abs((fdl - ful) - spec["duplex_mhz"]) <= 0.15:
             return True
     return False
+
+
+def band_dl_range_mhz(band: int) -> tuple[float, float]:
+    """Primary DL span (TS 25.101 general table), not extra UARFCNs."""
+    spec = BANDS[int(band)]
+    lo = spec["dl_lo"] / 5.0 + spec["dl_offset"]
+    hi = spec["dl_hi"] / 5.0 + spec["dl_offset"]
+    return (float(lo), float(hi))
+
+
+def mhz_to_uarfcn(freq_mhz: float, band: int) -> int:
+    spec = BANDS[int(band)]
+    n = int(round(5.0 * (float(freq_mhz) - spec["dl_offset"])))
+    n = max(spec["dl_lo"], min(spec["dl_hi"], n))
+    return n
+
+
+def uarfcns_primary(band: int) -> list[int]:
+    spec = BANDS[int(band)]
+    return list(range(spec["dl_lo"], spec["dl_hi"] + 1))
+
+
+def _pick_rate(span_hz: float) -> float:
+    span = float(span_hz)
+    if span <= 15.36e6:
+        return 15.36e6
+    return 30.72e6
+
+
+def survey_hops(band: int, usable_hz: float = B210_USABLE_HZ) -> list[dict]:
+    """LO hops that cover the primary DL. Rate never exceeds analog 56 MHz."""
+    f_lo_mhz, f_hi_mhz = band_dl_range_mhz(band)
+    f_lo = f_lo_mhz * 1e6
+    f_hi = f_hi_mhz * 1e6
+    usable = float(usable_hz)
+    hops: list[dict] = []
+    start = f_lo
+    overlap = 4e6
+    while start < f_hi - 1e3:
+        end = min(f_hi, start + usable)
+        span = end - start
+        center = 0.5 * (start + end)
+        rate = _pick_rate(span)
+        analog = min(B210_ANALOG_MAX_HZ, rate)
+        hops.append({
+            "center_hz": float(center),
+            "f_lo_hz": float(start),
+            "f_hi_hz": float(end),
+            "rate": rate,
+            "analog_bw": float(analog),
+        })
+        if end >= f_hi:
+            break
+        start = end - overlap
+    return hops
 
 
 def resolve_scan_list(bands: list[int] | None, uarfcns: list[int] | None) -> list[int]:

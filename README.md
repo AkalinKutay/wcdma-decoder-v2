@@ -35,6 +35,7 @@ If it adds you to group `usrp`, log out and back in.
 ./run-scan.sh --band 8 --uarfcn 2997 3018
 ./run-scan.sh --iq --band 8 --uarfcn 2938 2963
 ./run-scan.sh --detail --band 8 --uarfcn 2938
+./run-scan.sh --band-scan 8
 ./run-scan.sh -g 0 --uarfcn 10813
 ```
 
@@ -64,6 +65,7 @@ UARFCN 10813  2162.6 MHz  PSC 483  Ec/No  -4.3  RSCP  -63.4  B1  Turkcell
 | `--duration` | 3 | Capture seconds |
 | `--iq` | off | Keep timestamped IQ (see below) |
 | `--detail` | off | Print NAS, reselection, channels, PHY sync |
+| `--band-scan N` | | Sweep whole band, detect unknown UARFCNs, decode (~15–20 s) |
 | `--serial` | first free | UHD serial |
 | `--skip-sib` | off | Cell search only |
 | `--check` | | Deps + radio, then exit |
@@ -148,7 +150,10 @@ ve ASN.1 SIB okur. Kullanıcı trafiği / IMSI yok, verici yok.
 ./run-scan.sh --band 8 --uarfcn 2997
 ./run-scan.sh --iq --band 8 --uarfcn 2938 2963
 ./run-scan.sh --detail --band 8 --uarfcn 2938
+./run-scan.sh --band-scan 8
 ```
+
+`--band-scan 8` TR listesine bakmaz: bandın tamamını bir (veya iki) LO hop ile süpürür, enerji adaylarını decode eder.
 
 `--iq` yoksa `captures/uarfcn_<N>.cfile` üzerine yazar. `--iq` varsa damgalı
 kopya kalır (~180 MB / UARFCN). Sonuçlar her zaman `results/` altında damgalı.

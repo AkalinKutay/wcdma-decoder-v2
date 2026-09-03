@@ -6,8 +6,11 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from wcdma_bands import (
+    band_dl_range_mhz,
     band_of_uarfcn,
+    mhz_to_uarfcn,
     resolve_scan_list,
+    survey_hops,
     uarfcn_to_dl_mhz,
     ul_dl_pair_ok,
 )
@@ -45,6 +48,46 @@ def test_duplex():
     assert ul_dl_pair_ok(2712, 2937)
 
 
+def test_band_range_and_hops():
+    lo, hi = band_dl_range_mhz(8)
+    assert abs(lo - 927.4) < 1e-6
+    assert abs(hi - 957.6) < 1e-6
+    assert mhz_to_uarfcn(939.4, 8) == 2997
+    assert mhz_to_uarfcn(2162.6, 1) == 10813
+    hops8 = survey_hops(8)
+    assert len(hops8) == 1
+    assert hops8[0]["rate"] == 30.72e6
+    assert hops8[0]["analog_bw"] <= hops8[0]["rate"]
+    hops1 = survey_hops(1)
+    assert len(hops1) == 2
+    assert all(h["rate"] <= 30.72e6 for h in hops1)
+    assert all(h["analog_bw"] <= 56e6 for h in hops1)
+    b1_lo, b1_hi = band_dl_range_mhz(1)
+    span1 = hops1[-1]["f_hi_hz"] - hops1[0]["f_lo_hz"]
+    assert span1 >= (b1_hi - b1_lo) * 1e6 - 1e3
+
+
+def test_psd_finds_unknown_uarfcn():
+    import numpy as np
+    from wcdma_band_scan import find_candidate_uarfcns
+
+    fs = 30.72e6
+    lo = 942.5e6
+    n = int(0.08 * fs)
+    rng = np.random.default_rng(0)
+    iq = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64) * 0.05
+    # 5 MHz-ish noise bump at 2997 (939.4 MHz) → baseband -3.1 MHz
+    t = np.arange(n) / fs
+    bump = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
+    from scipy.signal import firwin, lfilter
+
+    taps = firwin(129, 1.8e6, fs=fs, pass_zero="lowpass").astype(np.float32)
+    bump = lfilter(taps, 1.0, bump).astype(np.complex64)
+    iq = iq + 4.0 * bump * np.exp(1j * 2 * np.pi * (939.4e6 - lo) * t)
+    found = find_candidate_uarfcns(iq, fs, lo, 8, 927.4e6, 957.6e6, margin_db=4.0)
+    assert 2997 in found or any(abs(u - 2997) <= 5 for u in found)
+
+
 def test_one_bit_uarfcn_slip():
     from wcdma_si_assembler import _drop_one_bit_uarfcn_slips
 
@@ -64,5 +107,7 @@ if __name__ == "__main__":
     test_3gpp_dl()
     test_cli_resolve()
     test_duplex()
+    test_band_range_and_hops()
+    test_psd_finds_unknown_uarfcn()
     test_one_bit_uarfcn_slip()
     print("  -> wcdma_bands tests PASSED")
