@@ -73,6 +73,56 @@ def test_tt_saved_bch_has_neighbors():
     assert 144 in info["wcdma_intra_pscs"]
     assert any(n["uarfcn"] == 10738 for n in info["wcdma_neighbors"])
     assert any(g["arfcn"] == 535 for g in info["gsm_neighbors"])
+    detail = info["detail"]
+    assert detail["lac"] == 40614
+    assert detail["sib3"]["q_rxlevmin_dbm"] == -115
+    assert detail["sib3"]["q_qualmin_db"] == -20
+    assert detail["sib7"]["ul_interference_dbm"] == -96
+    assert "SIB11" in detail["sibs"]
+    from scan_3g import print_cell
+    import io
+    from contextlib import redirect_stdout
+    cell = {
+        "uarfcn": 2938,
+        "freq_mhz": 927.6,
+        "band": "8",
+        "psc": 144,
+        "ecno": -4.05,
+        "rscp": -80.66,
+        "operator": "Turk Telekom",
+        "plmn": "28603",
+        "cid": "22871005",
+        "rnc": "348",
+        "local_cid": info["local_cell_id"],
+        "wcdma_neighbors": info["wcdma_neighbors"],
+        "lte_neighbors": info["lte_neighbors"],
+        "gsm_neighbors": info["gsm_neighbors"],
+        "detail": detail,
+        "sibs": info["sibs"],
+        "status": "ok",
+        "note": "",
+        "serial": "test",
+        "antenna": "RX2",
+        "gain_db": 40,
+        "code_group": 18,
+        "slot_timing": 1,
+        "frame_timing": 2,
+        "cfo_hz": -12.3,
+        "samples": 100,
+        "rms": 0.01,
+        "iq_file": "captures/uarfcn_2938.cfile",
+        "bch_file": "captures/uarfcn_2938_sc144.bch.json",
+        "bch_blocks": 120,
+        "extra_cells": [],
+    }
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        print_cell(cell, detail=True)
+    text = buf.getvalue()
+    assert "LAC" in text and "40614" in text
+    assert "qRxLevMin" in text and "-115" in text
+    assert "UL girişim" in text and "-96" in text
+    assert "SIB11" in text
 
 
 def test_iter_standalone_first_unchanged():

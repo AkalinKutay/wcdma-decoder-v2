@@ -34,6 +34,7 @@ If it adds you to group `usrp`, log out and back in.
 ./run-scan.sh --band 1 --uarfcn 10813
 ./run-scan.sh --band 8 --uarfcn 2997 3018
 ./run-scan.sh --iq --band 8 --uarfcn 2938 2963
+./run-scan.sh --detail --band 8 --uarfcn 2938
 ./run-scan.sh -g 0 --uarfcn 10813
 ```
 
@@ -62,6 +63,7 @@ UARFCN 10813  2162.6 MHz  PSC 483  Ec/No  -4.3  RSCP  -63.4  B1  Turkcell
 | `-g` / `--gain` | 40 | RX gain dB |
 | `--duration` | 3 | Capture seconds |
 | `--iq` | off | Keep timestamped IQ (see below) |
+| `--detail` | off | Print NAS, reselection, channels, PHY sync |
 | `--serial` | first free | UHD serial |
 | `--skip-sib` | off | Cell search only |
 | `--check` | | Deps + radio, then exit |
@@ -145,6 +147,7 @@ ve ASN.1 SIB okur. Kullanıcı trafiği / IMSI yok, verici yok.
 ./run-scan.sh --check
 ./run-scan.sh --band 8 --uarfcn 2997
 ./run-scan.sh --iq --band 8 --uarfcn 2938 2963
+./run-scan.sh --detail --band 8 --uarfcn 2938
 ```
 
 `--iq` yoksa `captures/uarfcn_<N>.cfile` üzerine yazar. `--iq` varsa damgalı

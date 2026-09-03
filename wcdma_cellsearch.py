@@ -21,7 +21,7 @@ import json
 import numpy as np
 import wcdma_sync
 
-def search_capture(input_path, iq_data=None, plot=False, plot_out="cell_search_diagnostics.png"):
+def search_capture(input_path, iq_data=None, plot=False, plot_out="cell_search_diagnostics.png", max_cells=1):
     """Run cell search on a .cfile (or preloaded IQ) and write <input>.results.json."""
     print(f"Karmaşık IQ verisi yükleniyor: {input_path}")
     meta_path = input_path + ".json"
@@ -48,26 +48,43 @@ def search_capture(input_path, iq_data=None, plot=False, plot_out="cell_search_d
     if len(iq_data) < 76800:
         raise ValueError("IQ verisi en az 10 ms (76800 sample) uzunluğunda olmalıdır!")
 
-    result = wcdma_sync.perform_cell_search(
-        iq_data=iq_data,
-        sample_rate=sample_rate,
-        plot_diagnostics=plot,
-        plot_output_path=plot_out,
-    )
+    if max_cells and int(max_cells) > 1:
+        found = wcdma_sync.perform_multi_cell_search(
+            iq_data=iq_data,
+            sample_rate=sample_rate,
+            max_cells=int(max_cells),
+        )
+        if not found:
+            result = wcdma_sync.perform_cell_search(
+                iq_data=iq_data,
+                sample_rate=sample_rate,
+                plot_diagnostics=plot,
+                plot_output_path=plot_out,
+            )
+            found = [result]
+    else:
+        result = wcdma_sync.perform_cell_search(
+            iq_data=iq_data,
+            sample_rate=sample_rate,
+            plot_diagnostics=plot,
+            plot_output_path=plot_out,
+        )
+        found = [result]
+    cells = []
+    for result in found:
+        cells.append({
+            "scrambling_code": result["scrambling_code"],
+            "code_group": result["code_group"],
+            "slot_timing_sample": result["slot_timing_sample"],
+            "frame_timing_sample": result["frame_timing_sample"],
+            "cpich_rscp_dbm": result["cpich_rscp_dbm"],
+            "cpich_ecno_db": result["cpich_ecno_db"],
+            "frequency_correction_hz": result["frequency_correction_hz"],
+        })
     output_json = {
         "uarfcn": uarfcn,
         "frequency_mhz": freq_mhz,
-        "cells": [
-            {
-                "scrambling_code": result["scrambling_code"],
-                "code_group": result["code_group"],
-                "slot_timing_sample": result["slot_timing_sample"],
-                "frame_timing_sample": result["frame_timing_sample"],
-                "cpich_rscp_dbm": result["cpich_rscp_dbm"],
-                "cpich_ecno_db": result["cpich_ecno_db"],
-                "frequency_correction_hz": result["frequency_correction_hz"],
-            }
-        ],
+        "cells": cells,
     }
     print("\nHücre Arama Analiz Sonuçları (JSON Formatında):")
     print(json.dumps(output_json, indent=2))

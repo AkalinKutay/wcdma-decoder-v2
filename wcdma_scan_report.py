@@ -103,6 +103,260 @@ def format_cell_id(bit_tuple):
     cell_id = val & 0xFFFF
     return val, rnc_id, cell_id
 
+
+def _choice(val):
+    if isinstance(val, tuple) and len(val) == 2:
+        return val[0], val[1]
+    return None, val
+
+
+def _bit_int(val):
+    if val is None:
+        return None
+    if isinstance(val, tuple) and len(val) == 2 and isinstance(val[0], (bytes, bytearray)):
+        data, nbits = val[0], int(val[1])
+        return int.from_bytes(data, "big") >> (len(data) * 8 - nbits)
+    if isinstance(val, (bytes, bytearray)):
+        return int.from_bytes(val, "big")
+    if isinstance(val, int):
+        return val
+    return None
+
+
+def _nas_bytes(val):
+    if isinstance(val, (bytes, bytearray)):
+        return bytes(val)
+    if isinstance(val, tuple) and val and isinstance(val[0], (bytes, bytearray)):
+        return bytes(val[0])
+    return b""
+
+
+def _sib_short(name):
+    mapping = {
+        "sysInfoType1": "SIB1",
+        "sysInfoType2": "SIB2",
+        "sysInfoType3": "SIB3",
+        "sysInfoType4": "SIB4",
+        "sysInfoType5": "SIB5",
+        "sysInfoType6": "SIB6",
+        "sysInfoType7": "SIB7",
+        "sysInfoType11": "SIB11",
+        "sysInfoType12": "SIB12",
+        "sysInfoTypeSB1": "SB1",
+        "schedulingBlock1": "SB1",
+        "systemInfoType19": "SIB19",
+        "systemInfoType11bis": "SIB11bis",
+        "systemInformationBlockType11bis": "SIB11bis",
+    }
+    return mapping.get(str(name), str(name))
+
+
+def extract_sib_detail(sibs):
+    """Flatten decoded SIBs into a small dict for --detail print."""
+    out = {
+        "sibs": sorted(sibs.keys()) if sibs else [],
+        "mib_tag": None,
+        "schedule": [],
+        "lac": None,
+        "cs": {},
+        "ps": {},
+        "drx": None,
+        "ura": [],
+        "sib3": {},
+        "sib5": {},
+        "sib7": {},
+        "sib11": {},
+        "sib19_utra": {},
+        "qoffsets": [],
+    }
+    if not sibs:
+        return out
+
+    mib = sibs.get("MIB") or {}
+    out["mib_tag"] = mib.get("mib-ValueTag")
+    for item in mib.get("sibSb-ReferenceList") or []:
+        kind, tag = _choice(item.get("sibSb-Type"))
+        sch = ((item.get("scheduling") or {}).get("scheduling")) or {}
+        pos_k, pos_v = _choice(sch.get("sib-Pos"))
+        out["schedule"].append({
+            "sib": _sib_short(kind),
+            "tag": tag,
+            "seg": sch.get("segCount"),
+            "rep": pos_k,
+            "pos": pos_v,
+        })
+    ext = mib
+    for key in (
+        "v690NonCriticalExtensions",
+        "v6b0NonCriticalExtensions",
+        "v860NonCriticalExtensions",
+    ):
+        ext = (ext or {}).get(key) or {}
+    mib860 = ext.get("masterInformationBlock-v860ext") or {}
+    for item in mib860.get("extSIBTypeInfoSchedulingInfo-List") or []:
+        kind, tag = _choice(item.get("extensionSIB-Type2") or item.get("extensionSIB-Type"))
+        sch = ((item.get("schedulingInfo") or {}).get("scheduling")) or {}
+        pos_k, pos_v = _choice(sch.get("sib-Pos"))
+        vtag = item.get("valueTagInfo")
+        if isinstance(vtag, tuple):
+            vtag = vtag[1]
+        out["schedule"].append({
+            "sib": _sib_short(kind),
+            "tag": vtag if tag is None else tag,
+            "seg": sch.get("segCount"),
+            "rep": pos_k,
+            "pos": pos_v,
+        })
+
+    sib1 = sibs.get("SIB1") or {}
+    lac_b = _nas_bytes(sib1.get("cn-CommonGSM-MAP-NAS-SysInfo"))
+    if len(lac_b) >= 2:
+        out["lac"] = int.from_bytes(lac_b[:2], "big")
+    for item in sib1.get("cn-DomainSysInfoList") or []:
+        nas = b""
+        cn_type = item.get("cn-Type")
+        _k, raw = _choice(cn_type)
+        nas = _nas_bytes(raw)
+        drx = item.get("cn-DRX-CycleLengthCoeff")
+        if drx is not None:
+            out["drx"] = drx
+        ident = item.get("cn-DomainIdentity")
+        if ident == "cs-domain":
+            out["cs"] = {
+                "t3212": nas[0] if nas else None,
+                "att": bool(nas[1] & 0x01) if len(nas) > 1 else None,
+            }
+        elif ident == "ps-domain":
+            out["ps"] = {
+                "rac": nas[0] if nas else None,
+                "nmo": nas[1] if len(nas) > 1 else None,
+            }
+
+    for ura in (sibs.get("SIB2") or {}).get("ura-IdentityList") or []:
+        val = _bit_int(ura)
+        if val is not None:
+            out["ura"].append(val)
+
+    sib3 = sibs.get("SIB3") or {}
+    sel = sib3.get("cellSelectReselectInfo") or {}
+    qkind, qval = _choice(sel.get("cellSelectQualityMeasure"))
+    fdd_k, fdd = _choice(sel.get("modeSpecificInfo"))
+    fdd = fdd or {}
+    barred_k, barred_v = _choice((sib3.get("cellAccessRestriction") or {}).get("cellBarred"))
+    ac = (sib3.get("cellAccessRestriction") or {}).get("accessClassBarredList") or []
+    q_rx = fdd.get("q-RxlevMin")
+    s_intra = fdd.get("s-Intrasearch")
+    s_inter = fdd.get("s-Intersearch")
+    q_hyst = sel.get("q-Hyst-l-S")
+    rats = []
+    for rat in fdd.get("rat-List") or []:
+        rats.append({
+            "rat": rat.get("rat-Identifier"),
+            "s_search": rat.get("s-SearchRAT"),
+        })
+    out["sib3"] = {
+        "quality": qkind,
+        "q_qualmin_db": fdd.get("q-QualMin"),
+        "q_rxlevmin_dbm": (q_rx * 2 + 1) if q_rx is not None else None,
+        "q_hyst_db": (q_hyst * 2) if q_hyst is not None else None,
+        "t_reselect_s": sel.get("t-Reselection-S"),
+        "s_intra_db": (s_intra * 2) if s_intra is not None else None,
+        "s_inter_db": (s_inter * 2) if s_inter is not None else None,
+        "max_ul_tx_dbm": sel.get("maxAllowedUL-TX-Power"),
+        "barred": barred_k,
+        "reserved": (sib3.get("cellAccessRestriction") or {}).get("cellReservedForOperatorUse"),
+        "ac_barred": sum(1 for x in ac if x and x != "notBarred"),
+        "ac_total": len(ac),
+        "rats": rats,
+        "sib4indicator": sib3.get("sib4indicator"),
+    }
+
+    sib5 = sibs.get("SIB5") or {}
+    _mk, mval = _choice(sib5.get("modeSpecificInfo"))
+    pccpch_k, pccpch = _choice(sib5.get("primaryCCPCH-Info"))
+    prach_sf = None
+    prach_sc = None
+    for prach in sib5.get("prach-SystemInformationList") or []:
+        _pk, pinfo = _choice((prach.get("prach-RACH-Info") or {}).get("modeSpecificInfo"))
+        pinfo = pinfo or {}
+        prach_sf = pinfo.get("availableSF")
+        prach_sc = pinfo.get("preambleScramblingCodeWordNumber")
+        break
+    sccpch = []
+    for scc in sib5.get("sCCPCH-SystemInformationList") or []:
+        _sk, sinfo = _choice((scc.get("secondaryCCPCH-Info") or {}).get("modeSpecificInfo"))
+        sinfo = sinfo or {}
+        sf_k, sf_v = _choice(sinfo.get("sf-AndCodeNumber"))
+        sccpch.append({"sf": sf_k, "code": sf_v, "sttd": sinfo.get("sttd-Indicator")})
+    out["sib5"] = {
+        "pich_db": sib5.get("pich-PowerOffset"),
+        "aich_db": (mval or {}).get("aich-PowerOffset") if isinstance(mval, dict) else None,
+        "tx_div": (pccpch or {}).get("tx-DiversityIndicator") if isinstance(pccpch, dict) else None,
+        "prach_sf": prach_sf,
+        "prach_sc": prach_sc,
+        "sccpch": sccpch,
+    }
+
+    sib7 = sibs.get("SIB7") or {}
+    _uk, uval = _choice(sib7.get("modeSpecificInfo"))
+    out["sib7"] = {
+        "ul_interference_dbm": (uval or {}).get("ul-Interference") if isinstance(uval, dict) else None,
+    }
+
+    def _walk_offsets(sib):
+        rows = []
+        control = (sib or {}).get("measurementControlSysInfo") or {}
+        hcs_k, hcs_v = _choice(control.get("use-of-HCS"))
+        q_k, q_v = _choice((hcs_v or {}).get("cellSelectQualityMeasure"))
+        intra = ((q_v or {}).get("intraFreqMeasurementSysInfo") or {})
+        intra_list = (intra.get("intraFreqCellInfoSI-List") or {}).get("newIntraFreqCellList") or []
+        if not intra_list and isinstance(q_v, dict):
+            intra_list = q_v.get("newIntraFreqCellList") or []
+        for cell in intra_list:
+            mode, val = _choice((cell.get("cellInfo") or {}).get("modeSpecificInfo"))
+            psc = (val or {}).get("primaryCPICH-Info", {}).get("primaryScramblingCode")
+            cio = (cell.get("cellInfo") or {}).get("cellIndividualOffset", 0)
+            if mode == "fdd" and psc is not None:
+                rows.append({
+                    "psc": int(psc),
+                    "qoffset_db": (cio or 0) * 0.5,
+                    "id": cell.get("intraFreqCellID"),
+                })
+        return hcs_k, q_k, rows
+
+    hcs_k = None
+    q_k = None
+    offsets = []
+    for key in ("SIB11", "SIB12", "SIB11bis"):
+        if not sibs.get(key):
+            continue
+        hk, qk, rows = _walk_offsets(sibs[key])
+        if hcs_k is None:
+            hcs_k, q_k = hk, qk
+        offsets.extend(rows)
+    out["sib11"] = {"hcs": hcs_k, "quality": q_k}
+    seen_off = set()
+    for row in offsets:
+        if row["psc"] in seen_off:
+            continue
+        seen_off.add(row["psc"])
+        if row["qoffset_db"]:
+            out["qoffsets"].append(row)
+
+    sib19 = sibs.get("SIB19") or {}
+    utra = sib19.get("utra-PriorityInfoList") or {}
+    serving = utra.get("utra-ServingCell") or {}
+    if serving:
+        out["sib19_utra"] = {
+            "priority": serving.get("priority"),
+            "s_priority_search1_db": (serving.get("s-PrioritySearch1") or 0) * 2
+            if serving.get("s-PrioritySearch1") is not None else None,
+            "thresh_serving_low_db": (serving.get("threshServingLow") or 0) * 2
+            if serving.get("threshServingLow") is not None else None,
+        }
+    return out
+
+
 def decode_sib_data(bch_json_path, db):
     """
     Decodes SIBs from a given BCH json file.
@@ -211,9 +465,17 @@ def decode_sib_data(bch_json_path, db):
                 "freq_mhz": freq_mhz,
                 "bw": bw_str,
                 "priority": priority,
-                "q_rx_lev_min": q_rx_lev_min
+                "q_rx_lev_min": q_rx_lev_min,
+                "q_rx_lev_min_dbm": (q_rx_lev_min * 2) if q_rx_lev_min is not None else None,
+                "thresh_x_high_db": (item.get("threshXhigh") * 2)
+                if item.get("threshXhigh") is not None else None,
+                "thresh_x_low_db": (item.get("threshXlow") * 2)
+                if item.get("threshXlow") is not None else None,
+                "eutra_detection": item.get("eutraDetection"),
             })
-            
+
+    info["sibs"] = sorted(sibs.keys())
+    info["detail"] = extract_sib_detail(sibs)
     return info
 
 def main():
