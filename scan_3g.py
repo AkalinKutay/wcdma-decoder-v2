@@ -979,11 +979,14 @@ def run_band_scan(
             file=sys.stderr,
             flush=True,
         )
+        # Probe every candidate first. One BCH/SIB decode used to eat the
+        # 20 s budget and skip remaining P-SCH.
+        hits: list[tuple[int, float]] = []
         for uarfcn in cands:
             if uarfcn in seen:
                 continue
             if time.time() - t0 > budget_s - 1.0:
-                print("# band-scan time budget, remaining candidates skipped", file=sys.stderr)
+                print("# band-scan time budget, remaining probes skipped", file=sys.stderr)
                 break
             target_hz = uarfcn_to_dl_mhz(uarfcn, band) * 1e6
             probe = ddc_to_decoder(
@@ -1010,11 +1013,37 @@ def run_band_scan(
                 logs.append(buf.getvalue())
             except Exception as exc:
                 logs.append(str(exc))
+                print(f"# probe {uarfcn}  error {exc}", file=sys.stderr, flush=True)
                 continue
             found = (search or {}).get("cells") or []
-            if not found or float(found[0]["cpich_ecno_db"]) < ECNO_MIN_DB:
+            if not found:
+                print(f"# probe {uarfcn}  no-cell", file=sys.stderr, flush=True)
                 continue
+            top = found[0]
+            ecno = float(top["cpich_ecno_db"])
+            psc = int(top["scrambling_code"])
+            if ecno < ECNO_MIN_DB:
+                print(
+                    f"# probe {uarfcn}  PSC {psc}  Ec/No {ecno:.1f}  skip",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                continue
+            print(
+                f"# probe {uarfcn}  PSC {psc}  Ec/No {ecno:.1f}",
+                file=sys.stderr,
+                flush=True,
+            )
+            hits.append((uarfcn, ecno))
+        hits.sort(key=lambda row: -row[1])
+        for uarfcn, _ecno in hits:
+            if uarfcn in seen:
+                continue
+            if time.time() - t0 > budget_s - 1.0:
+                print("# band-scan time budget, remaining decode skipped", file=sys.stderr)
+                break
             seen.add(uarfcn)
+            target_hz = uarfcn_to_dl_mhz(uarfcn, band) * 1e6
             full = ddc_to_decoder(wide, hop["rate"], hop["center_hz"], target_hz)
             cell, log = scan_uarfcn(
                 uarfcn,

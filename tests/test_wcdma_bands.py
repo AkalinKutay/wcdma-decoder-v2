@@ -67,25 +67,54 @@ def test_band_range_and_hops():
     assert span1 >= (b1_hi - b1_lo) * 1e6 - 1e3
 
 
+def _band8_iq_with_wcdma(rng, n, fs, lo, uarfcn_hz, amp=4.0):
+    import numpy as np
+    from scipy.signal import firwin, lfilter
+
+    iq = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64) * 0.05
+    t = np.arange(n) / fs
+    bump = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
+    taps = firwin(129, 1.8e6, fs=fs, pass_zero="lowpass").astype(np.float32)
+    bump = lfilter(taps, 1.0, bump).astype(np.complex64)
+    return iq + amp * bump * np.exp(1j * 2 * np.pi * (uarfcn_hz - lo) * t)
+
+
 def test_psd_finds_unknown_uarfcn():
     import numpy as np
-    from wcdma_band_scan import find_candidate_uarfcns
+    from wcdma_band_scan import find_candidate_uarfcns, format_psd_top
 
     fs = 30.72e6
     lo = 942.5e6
     n = int(0.08 * fs)
     rng = np.random.default_rng(0)
-    iq = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64) * 0.05
-    # 5 MHz-ish noise bump at 2997 (939.4 MHz) → baseband -3.1 MHz
-    t = np.arange(n) / fs
-    bump = (rng.standard_normal(n) + 1j * rng.standard_normal(n)).astype(np.complex64)
-    from scipy.signal import firwin, lfilter
-
-    taps = firwin(129, 1.8e6, fs=fs, pass_zero="lowpass").astype(np.float32)
-    bump = lfilter(taps, 1.0, bump).astype(np.complex64)
-    iq = iq + 4.0 * bump * np.exp(1j * 2 * np.pi * (939.4e6 - lo) * t)
+    iq = _band8_iq_with_wcdma(rng, n, fs, lo, 939.4e6)
     found = find_candidate_uarfcns(iq, fs, lo, 8, 927.4e6, 957.6e6, margin_db=4.0)
     assert 2997 in found or any(abs(u - 2997) <= 5 for u in found)
+    top = format_psd_top(iq, fs, lo, 8, 927.4e6, 957.6e6)
+    assert "2997" in top
+    # 5 MHz spacing in the log, not six adjacent 200 kHz bins.
+    assert "2998" not in top and "2996" not in top
+
+
+def test_psd_ignores_gsm_tone():
+    import numpy as np
+    from wcdma_band_scan import find_candidate_uarfcns, format_psd_top
+
+    fs = 30.72e6
+    lo = 942.5e6
+    n = int(0.08 * fs)
+    rng = np.random.default_rng(1)
+    iq = _band8_iq_with_wcdma(rng, n, fs, lo, 939.4e6, amp=3.0)
+    t = np.arange(n) / fs
+    # Strong GSM-like tone at 954.2 MHz (UARFCN 3071). Mean-window scoring
+    # used to list 3071 first and hide 2997.
+    iq = iq + (0.8 * np.exp(1j * 2 * np.pi * (954.2e6 - lo) * t)).astype(np.complex64)
+    found = find_candidate_uarfcns(iq, fs, lo, 8, 927.4e6, 957.6e6, margin_db=4.0)
+    assert 2997 in found or any(abs(u - 2997) <= 5 for u in found)
+    top = format_psd_top(iq, fs, lo, 8, 927.4e6, 957.6e6)
+    assert "2997" in top
+    first = int(top.split()[2])
+    assert abs(first - 2997) <= 5, top
 
 
 def test_one_bit_uarfcn_slip():
@@ -109,5 +138,6 @@ if __name__ == "__main__":
     test_duplex()
     test_band_range_and_hops()
     test_psd_finds_unknown_uarfcn()
+    test_psd_ignores_gsm_tone()
     test_one_bit_uarfcn_slip()
     print("  -> wcdma_bands tests PASSED")

@@ -37,7 +37,11 @@ def welch_two_sided(iq, fs: float, nperseg: int = 8192):
 
 
 def score_uarfcns(iq, fs: float, lo_hz: float, band: int, f_lo_hz: float, f_hi_hz: float):
-    """Mean PSD in ±1.8 MHz around each primary UARFCN. Returns [(uarfcn, linear_power)]."""
+    """25th-percentile PSD in ±1.8 MHz around each primary UARFCN.
+
+    Percentile, not mean: a 200 kHz GSM spike must not outrank a 5 MHz WCDMA
+    plateau. Returns [(uarfcn, linear_power)].
+    """
     n = min(len(iq), int(0.20 * fs))
     freqs, psd = welch_two_sided(iq[:n], fs)
     scores = []
@@ -49,8 +53,23 @@ def score_uarfcns(iq, fs: float, lo_hz: float, band: int, f_lo_hz: float, f_hi_h
         mask = np.abs(freqs - off) <= 1.8e6
         if not np.any(mask):
             continue
-        scores.append((int(u), float(np.mean(psd[mask]))))
+        scores.append((int(u), float(np.percentile(psd[mask], 25))))
     return scores
+
+
+def _spaced_top(db: dict[int, float], min_sep: int, max_n: int, floor=None) -> list[int]:
+    """Strongest UARFCNs at least min_sep apart (≈4 MHz at min_sep=20)."""
+    ordered = sorted(db, key=lambda u: -db[u])
+    kept: list[int] = []
+    for u in ordered:
+        if floor is not None and db[u] < floor:
+            continue
+        if any(abs(u - k) < min_sep for k in kept):
+            continue
+        kept.append(u)
+        if len(kept) >= max_n:
+            break
+    return kept
 
 
 def find_candidate_uarfcns(
@@ -70,38 +89,22 @@ def find_candidate_uarfcns(
         return []
     db = {u: 10.0 * math.log10(s + 1e-30) for u, s in scores}
     noise_db = float(np.percentile(list(db.values()), 20))
-    ordered = sorted(db, key=lambda u: -db[u])
-    kept: list[int] = []
-    for u in ordered:
-        if db[u] < noise_db + margin_db:
-            continue
-        if any(abs(u - k) < min_sep for k in kept):
-            continue
-        kept.append(u)
-        if len(kept) >= max_n:
-            break
+    kept = _spaced_top(db, min_sep, max_n, floor=noise_db + margin_db)
     if kept:
         return kept
-    # Band filled with similar energy (median/percentile threshold fails): still probe peaks.
-    for u in ordered:
-        if any(abs(u - k) < min_sep for k in kept):
-            continue
-        kept.append(u)
-        if len(kept) >= min(6, max_n):
-            break
-    return kept
+    # Band filled with similar energy (percentile threshold fails): still probe peaks.
+    return _spaced_top(db, min_sep, min(6, max_n))
 
 
-def format_psd_top(iq, fs, lo_hz, band, f_lo_hz, f_hi_hz, n: int = 6) -> str:
+def format_psd_top(iq, fs, lo_hz, band, f_lo_hz, f_hi_hz, n: int = 6, min_sep: int = 20) -> str:
     scores = score_uarfcns(iq, fs, lo_hz, band, f_lo_hz, f_hi_hz)
     if not scores:
         return "PSD empty"
-    scores.sort(key=lambda row: -row[1])
-    ref = float(np.percentile([s for _u, s in scores], 20))
+    db = {u: 10.0 * math.log10(s + 1e-30) for u, s in scores}
+    noise_db = float(np.percentile(list(db.values()), 20))
     bits = []
-    for u, s in scores[:n]:
-        db = 10.0 * math.log10((s + 1e-30) / (ref + 1e-30))
-        bits.append(f"{u} {db:+.1f}dB")
+    for u in _spaced_top(db, min_sep, n):
+        bits.append(f"{u} {db[u] - noise_db:+.1f}dB")
     return "PSD top " + "  ".join(bits)
 
 
